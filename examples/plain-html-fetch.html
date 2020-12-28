@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Compact Chart Single File Component Example</title>
+	<script src="../dist/compact-chart.umd.js"></script>
+	<link rel="stylesheet" href="../dist/compact-chart.css">
+
+	<style type="text/css">
+		compact-chart {
+			display: block;
+			width: 400px;
+			height: 400px;
+		}
+	</style>
+</head>
+
+<body>
+
+	<compact-chart></compact-chart>
+
+	<script>
+		document.querySelector("compact-chart").format = {
+			type: "bar-chart",
+			category_axis_column: 0,
+			data: fetch('../public/sample-1.json').then(rv => rv.json())
+		};
+
+	</script>
+</body>
+</html>

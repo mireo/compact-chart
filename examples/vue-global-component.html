@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Compact Chart VueJS Global Component Example</title>
+	<script src="https://unpkg.com/vue"></script>
+
+	<!-- Import compact-chart Web Component and CSS -->
+	<script src="../dist/compact-chart.umd.js"></script>
+	<link rel="stylesheet" href="../dist/compact-chart.css">
+
+	<style type="text/css">
+		compact-chart {
+			display: block;
+			width: 400px;
+			height: 400px;
+		}
+	</style>
+</head>
+
+<body>
+
+	<div id='app'>
+		<compact-chart ref="test-chart"></compact-chart>
+	</div>
+
+	<script>
+		var app = new Vue({
+			el: '#app',
+			data: {},
+			mounted() {
+				// set configuration format dynamically
+				this.$refs["test-chart"].format = {
+					type: "bar-chart",
+					category_axis_column: 0,
+					data: {
+							"cols": [
+								{"name": "x-val"}, {"name": "y-val"}
+							],
+							"data": [
+								[1, 1.6],
+								[2, 2.2],
+								[3, 2.7],
+								[4, 3.2],
+								[5, 3.5]
+							]
+						}
+				};
+			}
+		});
+
+	</script>
+</body>
+</html>

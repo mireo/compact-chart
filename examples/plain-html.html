@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Compact Chart Plain HTML Example</title>
+	<!-- Optional Polyfill for cross-browser compatibility (IE9+) -->
+	<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/document-register-element/1.4.1/document-register-element.js"></script> -->
+
+	<!-- Import compact-chart and the corresponding CSS -->
+	<script src="../dist/compact-chart.umd.js"></script>
+	<link rel="stylesheet" href="../dist/compact-chart.css">
+
+	<style type="text/css">
+		compact-chart {
+			display: block;
+			width: 400px;
+			height: 400px;
+		}
+	</style>
+</head>
+
+<body>
+	<!--
+        The compact-chart component is now available to use in the web page.
+        Use Web Components in your HTML like regular built-in elements.
+    -->
+	<compact-chart></compact-chart>
+
+	<script>
+		<!-- Set configuration format dynamically -->
+		document.querySelector("compact-chart").format = {
+			type: "bar-chart",
+			category_axis_column: 0,
+			data:  {
+            "cols": [
+                {
+                    "name": "expr$0",
+                    "nullable": false,
+                    "type": "int64"
+                },
+                {
+                    "name": "expr$1",
+                    "nullable": false,
+                    "type": "int64"
+                }
+            ],
+            "data": [
+                [
+                    3000,
+                    3
+                ],
+                [
+                    3600,
+                    34
+                ],
+                [
+                    4200,
+                    105
+                ],
+                [
+                    4800,
+                    212
+                ],
+                [
+                    5400,
+                    302
+                ],
+                [
+                    6000,
+                    275
+                ],
+                [
+                    6600,
+                    221
+                ],
+                [
+                    7200,
+                    129
+                ],
+                [
+                    7800,
+                    74
+                ],
+                [
+                    8400,
+                    53
+                ],
+                [
+                    9000,
+                    29
+                ],
+                [
+                    9600,
+                    6
+                ],
+                [
+                    10200,
+                    5
+                ],
+                [
+                    10800,
+                    3
+                ],
+                [
+                    11400,
+                    5
+                ],
+                [
+                    12600,
+                    1
+                ],
+                [
+                    23400,
+                    1
+                ]
+            ]
+        }
+		}
+			/*data: {
+					"cols": [
+						{"name": "x-val"}, {"name": "y-val"}
+					],
+					"data": [
+						[1, 1.6],
+						[2, 2.2],
+						[3, 2.7],
+						[4, 3.2],
+						[5, 3.5]
+					]
+				}*/
+
+	</script>
+</body>
+</html>
