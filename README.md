@@ -7,6 +7,7 @@
 - [About](#about)
 - [How to use it](#how-to-use-it)
 - [Examples](#examples)
+    - [Demo](#demo)
     - [Plain HTML Example with data fixture](#plain-HTML-Example-with-data-fixture)
     - [Integration with Vue.js](#integration-with-Vue.js)
     - [Other frameworks](#other-frameworks)
@@ -30,8 +31,11 @@ Combined with well-defined preset designs and features, `compact-chart` is an ex
 
 The easiest option is to download the latest release and include it in your app. Alternatively, check out the [building from source](#building-from-source) section.
 
+### Demo
+You may find lot of step-by-step examples [here](https://mireo.github.io/compact-chart/).
+
 ### HTML
-Download the latest release link directly from [unpkg](https://www.unpkg.com/compact-chart).:
+Download the latest release link directly from [unpkg](https://www.unpkg.com/compact-chart):
 
 ```
 <script src="./compact-chart.umd.min.js"></script>
