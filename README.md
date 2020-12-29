@@ -31,7 +31,7 @@ Combined with well-defined preset designs and features, `compact-chart` is an ex
 The easiest option is to download the latest release and include it in your app. Alternatively, check out the [building from source](#building-from-source) section.
 
 ### HTML
-Download the latest release:
+Download the latest release link directly from [unpkg](https://www.unpkg.com/compact-chart).:
 
 ```
 <script src="./compact-chart.umd.min.js"></script>
@@ -110,8 +110,8 @@ Refer to [Examples](#examples) section for integration source codes.
     <script src="https://unpkg.com/vue"></script>
 
     <!-- Import compact-chart Web Component and CSS -->
-    <script src="./dist/compact-chart.umd.js"></script>
-    <link rel="stylesheet" href="./dist/compact-chart.css">
+    <script src="./compact-chart.umd.min.js"></script>
+    <link rel="stylesheet" href="./compact-chart.css">
 
     <style type="text/css">
         compact-chart {
@@ -170,8 +170,8 @@ Refer to [Examples](#examples) section for integration source codes.
 <script>
 
 // import compact-chart Web Component and CSS
-import CompactChart from "compact-chart.min.js";
-import "compact-chart.css";
+import CompactChart from "./compact-chart.umd.min.js";
+import "./compact-chart.css";
 
 export default {
     mounted() {
