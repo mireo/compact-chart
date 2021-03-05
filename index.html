@@ -74,6 +74,7 @@
 		<li><a href="#horizontal-bar-charts">Horizontal bar charts</li>
 		<li><a href="#line-charts">Line and area charts</li>
 		<li><a href="#pie-charts">Pie, doughnut and gauge charts</li>
+		<li><a href="#refreshable-charts">Automatically refresh chart</li>
 	</ul>
 
 	<h3 id="vertical-bar-charts">Vertical bar charts</h3>
@@ -115,362 +116,412 @@
 		<compact-chart data-chart="gauge-chart" class="chart-elem"></compact-chart>
 	</div>
 
+	<h3 id="refreshable-charts">Automatically refresh chart with new data</h3>
+	<div class="flex-grid">
+		<compact-chart data-chart="bar-chart-auto-refresh-fixture" class="chart-elem"></compact-chart>
+	</div>
+
 	<script type="text/javascript">
-			async function fetch_json(p) {
-				let pr = fetch(p);
-				const resp = await pr;
-				if (!resp.ok) throw res.status;
-				const res = await resp.json();
-				return res;
+		async function fetch_json(p) {
+			let pr = fetch(p);
+			const resp = await pr;
+			if (!resp.ok) throw res.status;
+			const res = await resp.json();
+			return res;
+		};
+
+		const chart_defs = {
+			//Bar
+			"bar-chart-fixture": {
+				type: "bar-chart",
+				category_axis_column: 0,
+				locale: "hr",
+				number_symbols: [],
+				size: "small",
+				title: {
+					label: "Vertical bar chart (Fixture data)"
+				},
+				xaxis: {
+					label: "x-axis"
+				},
+				yaxis: {
+					range: "auto-0",
+					label: "y-axis"
+				},
+				labels: {
+					display: true
+				},
+				data: {"cols":[{"name":"x-val"},{"name":"y-val"}],"data":[[1,1.6],[2,2.2],[3,2.7],[4,3.2],[5,3.5]]},
+			},
+			"bar-chart-auto-refresh-fixture": {
+				type: "bar-chart",
+				category_axis_column: 0,
+				locale: "hr",
+				number_symbols: [],
+				size: "small",
+				title: {
+					label: "Vertical bar chart (automatic refresh)"
+				},
+				xaxis: {
+					label: "x-axis"
+				},
+				yaxis: {
+					range: "auto-0",
+					label: "y-axis"
+				},
+				labels: {
+					display: true
+				},
+				data: {"cols":[{"name":"x-val"},{"name":"y-val"}],"data":[[1,1.6],[2,2.2],[3,2.7],[4,3.2],[5,3.5]]},
+			},
+			"bar-chart": {
+				type: "bar-chart",
+				category_axis_column: 0,
+				locale: "hr",
+				number_symbols: [],
+				size: "large",
+				title: {
+					label: "Vertical bar chart"
+				},
+				xaxis: {
+					label: "x-axis"
+				},
+				yaxis: {
+					range: "auto-0",
+					label: "y-axis"
+				},
+				labels: {
+					display: true
+				},
+				data: fetch_json("./public/sample-1.json")
+			},
+			"bar-chart-percentage": {
+				type: "bar-chart",
+				percentage_values: true,
+				category_axis_column: 0,
+				title: {
+					label: "Vertical bar chart with percentage values"
+				},
+				xaxis: {
+					label: "x-axis"
+				},
+				yaxis: {
+					label: "y-axis"
+				},
+				labels: {
+					display: true,
+					label: "value-percentage"
+				},
+				data: fetch_json("./public/sample-1.json")
+			},
+			"grouped-bar-chart": {
+				type: "bar-chart",
+				category_axis_column: 0,
+				size: "large",
+				title: {
+					label: "Grouped vertical bar chart"
+				},
+				xaxis: {
+					label: "x-axis"
+				},
+				yaxis: {
+					range: "auto-0",
+					label: "y-axis"
+				},
+				labels: {
+					display: true
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+			"stacked-bar-chart": {
+				type: "bar-chart",
+				stacked: true,
+				category_axis_column: 0,
+				title: {
+					label: "Stacked vertical bar chart"
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+			"stacked-bar-chart-percentage": {
+				type: "bar-chart",
+				stacked: true,
+				percentage_values: true,
+				category_axis_column: 0,
+				title: {
+					label: "Stacked vertical bar chart with percentage values"
+				},
+				labels: {
+					display: true,
+					label: "percentage"
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+
+			"horizontal-bar-chart": {
+				type: "horizontal-bar-chart",
+				category_axis_column: 0,
+				title: {
+					label: "Horizontal bar chart"
+				},
+				yaxis: {
+					range: "auto-0"
+				},
+				data: fetch_json("./public/sample-1.json")
+			},
+			"horizontal-bar-chart-percentage": {
+				type: "horizontal-bar-chart",
+				percentage_values: true,
+				category_axis_column: 0,
+				title: {
+					label: "Horizontal bar chart with percentage values"
+				},
+				labels: {
+					display: true,
+					label: "percentage"
+				},
+				data: fetch_json("./public/sample-1.json")
+			},
+			"grouped-horizontal-bar-chart": {
+				type: "horizontal-bar-chart",
+				category_axis_column: 0,
+				title: {
+					label: "Grouped horizontal bar chart"
+				},
+				xaxis: {
+					range: "auto-0"
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+			"stacked-horizontal-bar-chart": {
+				type: "horizontal-bar-chart",
+				stacked: true,
+				category_axis_column: 0,
+				title: {
+					label: "Stacked horizontal bar chart"
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+			"stacked-horizontal-bar-chart-percentage": {
+				type: "horizontal-bar-chart",
+				stacked: true,
+				percentage_values: true,
+				category_axis_column: 0,
+				title: {
+					label: "Stacked horizontal bar chart with percentage values"
+				},
+				labels: {
+					display: true,
+					label: "percentage"
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+
+			// Linear
+			"line-category-chart": {
+				type: "line-chart",
+				category_axis_column: 0,
+				size: "small",
+				title: {
+					label: "Line category chart"
+				},
+				yaxis: {
+					range: "auto-0"
+				},
+				labels: {
+					display: true
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+			"stacked-linear-chart": {
+				type: "line-chart",
+				stacked: true,
+				category_axis_column: 0,
+				size: "large",
+				title: {
+					label: "Stacked line category chart"
+				},
+				yaxis: {
+					range: "auto-0"
+				},
+				labels: {
+					display: true
+				},
+				data: fetch_json("./public/sample-2.json")
+			},
+			"line-linear-chart": {
+				type: "line-chart",
+				category_axis_column: 0,
+				title: {
+					label: "Line linear chart"
+				},
+				xaxis: {
+					type: "linear"
+				},
+				yaxis: {
+					range: "auto-0"
+				},
+				data: fetch_json("./public/sample-3.json")
+			},
+			"stacked-linear-line-chart": {
+				type: "line-chart",
+				stacked: true,
+				category_axis_column: 0,
+				title: {
+					label: "Stacked linear category chart"
+				},
+				xaxis: {
+					type: "linear"
+				},
+				yaxis: {
+					range: "auto-0"
+				},
+				data: fetch_json("./public/sample-3.json")
+			},
+			"logarithmic-line-linear-chart": {
+				type: "line-chart",
+				locale: "en-IN",
+				number_symbols: [],
+				category_axis_column: 0,
+				title: {
+					label: "Logarithmic line linear chart"
+				},
+				xaxis: {
+					type: "linear"
+				},
+				yaxis: {
+					range: "auto-0",
+					type: "logarithmic"
+				},
+				data: fetch_json("./public/sample-3.json")
+			},
+			"logarithmic-line-linear-chart-2": {
+				type: "line-chart",
+				number_symbols: [],
+				category_axis_column: 0,
+				title: {
+					label: "Logarithmic line linear chart"
+				},
+				xaxis: {
+					type: "linear"
+				},
+				yaxis: {
+					range: "auto-0",
+					type: "logarithmic"
+				},
+				data: fetch_json("./public/sample-3.json")
+			},
+
+			// Area
+			"area-chart": {
+				type: "area-chart",
+				category_axis_column: 0,
+				size: "large",
+				title: {
+					label: "Area chart"
+				},
+				xaxis: {
+					type: "linear",
+					label: "x-axis 1 2 3 4 5 6 7 8 9 10"
+				},
+				yaxis: {
+					range: "auto-0",
+					label: "y-axis"
+				},
+				data: fetch_json("./public/sample-3.json")
+			},
+			"area-stacked-chart": {
+				type: "area-chart",
+				stacked: true,
+				category_axis_column: 0,
+				title: {
+					label: "Stacked area chart"
+				},
+				xaxis: {
+					type: "linear"
+				},
+				yaxis: {
+					range: "auto-0"
+				},
+				data: fetch_json("./public/sample-3.json")
+			},
+
+			// Pie
+			"pie-chart": {
+				type: "pie-chart",
+				category_axis_column: 0,
+				size: "small",
+				title: {
+					label: "Pie chart"
+				},
+				labels: {
+					display: true,
+					label: "value"
+				},
+				legend: {
+					placement: "right-start"
+				},
+				color_palette: ["#1b9e77","#d95f02","#7570b3","#e7298a","#66a61e"],
+				data: fetch_json("./public/sample-4.json")
+			},
+			"doughnut-chart": {
+				type: "doughnut-chart",
+				category_axis_column: 0,
+				size: "large",
+				title: {
+					label: "Doughnut chart"
+				},
+				hole_size: 0.3,
+				labels: {
+					display: true,
+					label: "percentage"
+				},
+				data: fetch_json("./public/sample-4.json")
+			},
+			"gauge-chart": {
+				type: "gauge-chart",
+				category_axis_column: 0,
+				title: {
+					label: "Gauge chart"
+				},
+				hole_size: 0.8,
+				// angle: 270,
+				labels: {
+					display: true,
+					label: "value-percentage",
+					position: "center"
+				},
+				data: fetch_json("./public/sample-4.json")
+			}
+		};
+
+		document.querySelectorAll("[data-chart]").forEach(e => {
+			const format = chart_defs[e.getAttribute("data-chart")];
+			if (format) e.format = format;
+		});
+
+		setInterval(() => {
+			document.querySelector('[data-chart="bar-chart-auto-refresh-fixture"]').format = {
+				type: "bar-chart",
+				category_axis_column: 0,
+				locale: "hr",
+				number_symbols: [],
+				size: "small",
+				title: {
+					label: "Vertical bar chart (automatic refresh)"
+				},
+				xaxis: {
+					label: "x-axis"
+				},
+				yaxis: {
+					range: "auto-0",
+					label: "y-axis"
+				},
+				labels: {
+					display: true
+				},
+				data: {'cols':[{'name':'x-val'},{'name':'y-val'}],'data':[[1, Math.random()*10],[2, Math.random()*10],[3, Math.random()*10],[4, Math.random()*10],[5, Math.random()*10]]},
 			};
-
-			const chart_defs = {
-				//Bar
-				"bar-chart-fixture": {
-					type: "bar-chart",
-					category_axis_column: 0,
-					locale: "hr",
-					number_symbols: [],
-					size: "small",
-					title: {
-						label: "Vertical bar chart (Fixture data)"
-					},
-					xaxis: {
-						label: "x-axis"
-					},
-					yaxis: {
-						range: "auto-0",
-						label: "y-axis"
-					},
-					labels: {
-						display: true
-					},
-					data: {"cols":[{"name":"x-val"},{"name":"y-val"}],"data":[[1,1.6],[2,2.2],[3,2.7],[4,3.2],[5,3.5]]},
-				},
-				"bar-chart": {
-					type: "bar-chart",
-					category_axis_column: 0,
-					locale: "hr",
-					number_symbols: [],
-					size: "large",
-					title: {
-						label: "Vertical bar chart"
-					},
-					xaxis: {
-						label: "x-axis"
-					},
-					yaxis: {
-						range: "auto-0",
-						label: "y-axis"
-					},
-					labels: {
-						display: true
-					},
-					data: fetch_json("./public/sample-1.json")
-				},
-				"bar-chart-percentage": {
-					type: "bar-chart",
-					percentage_values: true,
-					category_axis_column: 0,
-					title: {
-						label: "Vertical bar chart with percentage values"
-					},
-					xaxis: {
-						label: "x-axis"
-					},
-					yaxis: {
-						label: "y-axis"
-					},
-					labels: {
-						display: true,
-						label: "value-percentage"
-					},
-					data: fetch_json("./public/sample-1.json")
-				},
-				"grouped-bar-chart": {
-					type: "bar-chart",
-					category_axis_column: 0,
-					size: "large",
-					title: {
-						label: "Grouped vertical bar chart"
-					},
-					xaxis: {
-						label: "x-axis"
-					},
-					yaxis: {
-						range: "auto-0",
-						label: "y-axis"
-					},
-					labels: {
-						display: true
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-				"stacked-bar-chart": {
-					type: "bar-chart",
-					stacked: true,
-					category_axis_column: 0,
-					title: {
-						label: "Stacked vertical bar chart"
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-				"stacked-bar-chart-percentage": {
-					type: "bar-chart",
-					stacked: true,
-					percentage_values: true,
-					category_axis_column: 0,
-					title: {
-						label: "Stacked vertical bar chart with percentage values"
-					},
-					labels: {
-						display: true,
-						label: "percentage"
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-
-				"horizontal-bar-chart": {
-					type: "horizontal-bar-chart",
-					category_axis_column: 0,
-					title: {
-						label: "Horizontal bar chart"
-					},
-					yaxis: {
-						range: "auto-0"
-					},
-					data: fetch_json("./public/sample-1.json")
-				},
-				"horizontal-bar-chart-percentage": {
-					type: "horizontal-bar-chart",
-					percentage_values: true,
-					category_axis_column: 0,
-					title: {
-						label: "Horizontal bar chart with percentage values"
-					},
-					labels: {
-						display: true,
-						label: "percentage"
-					},
-					data: fetch_json("./public/sample-1.json")
-				},
-				"grouped-horizontal-bar-chart": {
-					type: "horizontal-bar-chart",
-					category_axis_column: 0,
-					title: {
-						label: "Grouped horizontal bar chart"
-					},
-					xaxis: {
-						range: "auto-0"
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-				"stacked-horizontal-bar-chart": {
-					type: "horizontal-bar-chart",
-					stacked: true,
-					category_axis_column: 0,
-					title: {
-						label: "Stacked horizontal bar chart"
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-				"stacked-horizontal-bar-chart-percentage": {
-					type: "horizontal-bar-chart",
-					stacked: true,
-					percentage_values: true,
-					category_axis_column: 0,
-					title: {
-						label: "Stacked horizontal bar chart with percentage values"
-					},
-					labels: {
-						display: true,
-						label: "percentage"
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-
-				// Linear
-				"line-category-chart": {
-					type: "line-chart",
-					category_axis_column: 0,
-					size: "small",
-					title: {
-						label: "Line category chart"
-					},
-					yaxis: {
-						range: "auto-0"
-					},
-					labels: {
-						display: true
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-				"stacked-linear-chart": {
-					type: "line-chart",
-					stacked: true,
-					category_axis_column: 0,
-					size: "large",
-					title: {
-						label: "Stacked line category chart"
-					},
-					yaxis: {
-						range: "auto-0"
-					},
-					labels: {
-						display: true
-					},
-					data: fetch_json("./public/sample-2.json")
-				},
-				"line-linear-chart": {
-					type: "line-chart",
-					category_axis_column: 0,
-					title: {
-						label: "Line linear chart"
-					},
-					xaxis: {
-						type: "linear"
-					},
-					yaxis: {
-						range: "auto-0"
-					},
-					data: fetch_json("./public/sample-3.json")
-				},
-				"stacked-linear-line-chart": {
-					type: "line-chart",
-					stacked: true,
-					category_axis_column: 0,
-					title: {
-						label: "Stacked linear category chart"
-					},
-					xaxis: {
-						type: "linear"
-					},
-					yaxis: {
-						range: "auto-0"
-					},
-					data: fetch_json("./public/sample-3.json")
-				},
-				"logarithmic-line-linear-chart": {
-					type: "line-chart",
-					locale: "en-IN",
-					number_symbols: [],
-					category_axis_column: 0,
-					title: {
-						label: "Logarithmic line linear chart"
-					},
-					xaxis: {
-						type: "linear"
-					},
-					yaxis: {
-						range: "auto-0",
-						type: "logarithmic"
-					},
-					data: fetch_json("./public/sample-3.json")
-				},
-				"logarithmic-line-linear-chart-2": {
-					type: "line-chart",
-					number_symbols: [],
-					category_axis_column: 0,
-					title: {
-						label: "Logarithmic line linear chart"
-					},
-					xaxis: {
-						type: "linear"
-					},
-					yaxis: {
-						range: "auto-0",
-						type: "logarithmic"
-					},
-					data: fetch_json("./public/sample-3.json")
-				},
-
-				// Area
-				"area-chart": {
-					type: "area-chart",
-					category_axis_column: 0,
-					size: "large",
-					title: {
-						label: "Area chart"
-					},
-					xaxis: {
-						type: "linear",
-						label: "x-axis 1 2 3 4 5 6 7 8 9 10"
-					},
-					yaxis: {
-						range: "auto-0",
-						label: "y-axis"
-					},
-					data: fetch_json("./public/sample-3.json")
-				},
-				"area-stacked-chart": {
-					type: "area-chart",
-					stacked: true,
-					category_axis_column: 0,
-					title: {
-						label: "Stacked area chart"
-					},
-					xaxis: {
-						type: "linear"
-					},
-					yaxis: {
-						range: "auto-0"
-					},
-					data: fetch_json("./public/sample-3.json")
-				},
-
-				// Pie
-				"pie-chart": {
-					type: "pie-chart",
-					category_axis_column: 0,
-					size: "small",
-					title: {
-						label: "Pie chart"
-					},
-					labels: {
-						display: true,
-						label: "value"
-					},
-					legend: {
-						placement: "right-start"
-					},
-					color_palette: ["#1b9e77","#d95f02","#7570b3","#e7298a","#66a61e"],
-					data: fetch_json("./public/sample-4.json")
-				},
-				"doughnut-chart": {
-					type: "doughnut-chart",
-					category_axis_column: 0,
-					size: "large",
-					title: {
-						label: "Doughnut chart"
-					},
-					hole_size: 0.3,
-					labels: {
-						display: true,
-						label: "percentage"
-					},
-					data: fetch_json("./public/sample-4.json")
-				},
-				"gauge-chart": {
-					type: "gauge-chart",
-					category_axis_column: 0,
-					title: {
-						label: "Gauge chart"
-					},
-					hole_size: 0.8,
-					// angle: 270,
-					labels: {
-						display: true,
-						label: "value-percentage",
-						position: "center"
-					},
-					data: fetch_json("./public/sample-4.json")
-				}
-			};
-
-			document.querySelectorAll("[data-chart]").forEach(e => {
-				const format = chart_defs[e.getAttribute("data-chart")];
-				if (format) e.format = format;
-			});
-		</script>
+		}, 2000);
+	</script>
 </body>
 </html>

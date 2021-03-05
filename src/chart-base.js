@@ -382,21 +382,29 @@ export var chartjs_mixin = {
 	props: {
 		format: {type: Object}
 	},
+	watch: {
+		format: function() {
+			this.rerender();
+		}
+	},
 	async mounted() {
 		this.render();
 		this.$emit('update:status', 'Loading');
 
-		const pr = new Promise((resolve) => resolve(this.format.data));
-		try {
-			const result = await pr;
-			this.render(result);
-		}
-		catch(err) {}
-		finally {
-			this.$emit('update:status', '');
-		}
+		this.rerender();
 	},
 	methods: {
-		render(response, format) {}
+		async rerender() {
+			const pr = new Promise((resolve) => resolve(this.format.data));
+			try {
+				const result = await pr;
+				this.$emit('update:status', '');
+				this.render(result);
+			}
+			catch(err) {}
+			finally {
+				this.$emit('update:status', '');
+			}
+		}
 	}
 };

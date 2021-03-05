@@ -43,6 +43,8 @@
 	<body>
 		<div class='flex-grid'>
 			<compact-chart data-chart='bar-chart-fixture' class='chart-elem'></compact-chart>
+			<compact-chart data-chart="bar-chart-auto-refresh-fixture" class="chart-elem"></compact-chart>
+
 			<compact-chart data-chart='bar-chart' class='chart-elem'></compact-chart>
 			<compact-chart data-chart='bar-chart-percentage' class='chart-elem'></compact-chart>
 			<compact-chart data-chart='grouped-bar-chart' class='chart-elem'></compact-chart>
@@ -103,6 +105,27 @@
 						display: true
 					},
 					data: {'cols':[{'name':'x-val'},{'name':'y-val'}],'data':[[1,1.6],[2,2.2],[3,2.7],[4,3.2],[5,3.5]]},
+				},
+				"bar-chart-auto-refresh-fixture": {
+					type: "bar-chart",
+					category_axis_column: 0,
+					locale: "hr",
+					number_symbols: [],
+					size: "small",
+					title: {
+						label: "Vertical bar chart (automatic refresh)"
+					},
+					xaxis: {
+						label: "x-axis"
+					},
+					yaxis: {
+						range: "auto-0",
+						label: "y-axis"
+					},
+					labels: {
+						display: true
+					},
+					data: {"cols":[{"name":"x-val"},{"name":"y-val"}],"data":[[1,1.6],[2,2.2],[3,2.7],[4,3.2],[5,3.5]]},
 				},
 				'bar-chart': {
 					type: 'bar-chart',
@@ -428,6 +451,30 @@
 				const format = chart_defs[e.getAttribute('data-chart')];
 				if (format) e.format = format;
 			});
+
+			setInterval(() => {
+				document.querySelector('[data-chart="bar-chart-auto-refresh-fixture"]').format = {
+					type: "bar-chart",
+					category_axis_column: 0,
+					locale: "hr",
+					number_symbols: [],
+					size: "small",
+					title: {
+						label: "Vertical bar chart (automatic refresh)"
+					},
+					xaxis: {
+						label: "x-axis"
+					},
+					yaxis: {
+						range: "auto-0",
+						label: "y-axis"
+					},
+					labels: {
+						display: true
+					},
+					data: {'cols':[{'name':'x-val'},{'name':'y-val'}],'data':[[1, Math.random()*10],[2, Math.random()*10],[3, Math.random()*10],[4, Math.random()*10],[5, Math.random()*10]]},
+				};
+			}, 2000);
 		</script>
 	</body>
 </html>
