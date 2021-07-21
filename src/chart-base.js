@@ -96,8 +96,8 @@ const stchart_formats = {
 		type: null, // Chartjs default, 'linear', 'category', 'logarithmic'
 		label: '',
 		tick_orientation: null,  //auto, degrees 0 - 90, Only applicable to horizontal scales.
-		range: null // auto, auto-0, []
-		// TODO: ticks
+		range: null, // auto, auto-0, []
+		step: undefined // undefined, Number, Only applicable to linear axes
 	},
 
 	// doughnut, gauge
@@ -128,6 +128,9 @@ function chartjs_axis_format(axis, axis_format, stacked, perc_vals, locale, numb
 	}
 	if (range == 'auto-0')
 		axis.ticks.beginAtZero = true;
+
+	if (af.step != undefined)
+		axis.ticks.stepSize = af.step;
 
 	let tf = perc_vals ? chartjs_tick_formatters.percentage : chartjs_tick_formatters[axis.type] || chartjs_tick_formatters.category;
 	axis.ticks.callback = function(value, index, ticks) {

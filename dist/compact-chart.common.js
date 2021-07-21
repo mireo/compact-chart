@@ -42129,14 +42129,14 @@ if (typeof window !== 'undefined' && window.Vue) {
 
 /* harmony default export */ var vue_custom_element_esm = (install);
 
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"3b72f657-vue-loader-template"}!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/compact-chart.vue?vue&type=template&id=42af12ac&
+// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"775ce834-vue-loader-template"}!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/compact-chart.vue?vue&type=template&id=42af12ac&
 var render = function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _c('div',{staticClass:"pw-100"},[_c(_vm.chart_opts.type,{directives:[{name:"show",rawName:"v-show",value:(!_vm.status),expression:"!status"}],tag:"component",staticClass:"pw-100",attrs:{"format":_vm.chart_opts,"status":_vm.status},on:{"update:status":function($event){_vm.status=$event}}}),(_vm.invalid_ctype)?_c('div',[_vm._v("Unsupported visual")]):_vm._e(),(_vm.status == "Loading")?_c('spinner-item'):(_vm.status)?_c('div',[_vm._v(_vm._s(_vm.status))]):_vm._e()],1)}
 var staticRenderFns = []
 
 
 // CONCATENATED MODULE: ./src/compact-chart.vue?vue&type=template&id=42af12ac&
 
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"3b72f657-vue-loader-template"}!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/components/spinner-item.vue?vue&type=template&id=5efdb54f&
+// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"775ce834-vue-loader-template"}!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/components/spinner-item.vue?vue&type=template&id=5efdb54f&
 var spinner_itemvue_type_template_id_5efdb54f_render = function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _vm._m(0)}
 var spinner_itemvue_type_template_id_5efdb54f_staticRenderFns = [function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _c('div',{staticClass:"spinner"},[_c('div',{staticClass:"loader"},[_c('div'),_c('div'),_c('div')])])}]
 
@@ -43131,8 +43131,8 @@ const stchart_formats = {
 		type: null, // Chartjs default, 'linear', 'category', 'logarithmic'
 		label: '',
 		tick_orientation: null,  //auto, degrees 0 - 90, Only applicable to horizontal scales.
-		range: null // auto, auto-0, []
-		// TODO: ticks
+		range: null, // auto, auto-0, []
+		step: undefined // undefined, Number, Only applicable to linear axes
 	},
 
 	// doughnut, gauge
@@ -43163,6 +43163,9 @@ function chartjs_axis_format(axis, axis_format, stacked, perc_vals, locale, numb
 	}
 	if (range == 'auto-0')
 		axis.ticks.beginAtZero = true;
+
+	if (af.step != undefined)
+		axis.ticks.stepSize = af.step;
 
 	let tf = perc_vals ? chartjs_tick_formatters.percentage : chartjs_tick_formatters[axis.type] || chartjs_tick_formatters.category;
 	axis.ticks.callback = function(value, index, ticks) {
