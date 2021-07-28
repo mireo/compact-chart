@@ -82,7 +82,7 @@ module.exports =
 /******/
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = "380f");
+/******/ 	return __webpack_require__(__webpack_require__.s = "fae3");
 /******/ })
 /************************************************************************/
 /******/ ({
@@ -221,7 +221,7 @@ cs.get.hsl = function (string) {
 		return null;
 	}
 
-	var hsl = /^hsla?\(\s*([+-]?(?:\d*\.)?\d+)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
+	var hsl = /^hsla?\(\s*([+-]?(?:\d{0,3}\.)?\d+)(?:deg)?\s*,?\s*([+-]?[\d\.]+)%\s*,?\s*([+-]?[\d\.]+)%\s*(?:[,|\/]\s*([+-]?[\d\.]+)\s*)?\)$/;
 	var match = string.match(hsl);
 
 	if (match) {
@@ -242,7 +242,7 @@ cs.get.hwb = function (string) {
 		return null;
 	}
 
-	var hwb = /^hwb\(\s*([+-]?\d*[\.]?\d+)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
+	var hwb = /^hwb\(\s*([+-]?\d{0,3}(?:\.\d+)?)(?:deg)?\s*,\s*([+-]?[\d\.]+)%\s*,\s*([+-]?[\d\.]+)%\s*(?:,\s*([+-]?[\d\.]+)\s*)?\)$/;
 	var match = string.match(hwb);
 
 	if (match) {
@@ -370,8 +370,8 @@ swizzle.wrap = function (fn) {
 
 "use strict";
 /* WEBPACK VAR INJECTION */(function(global) {/*!
- * Vue.js v2.6.12
- * (c) 2014-2020 Evan You
+ * Vue.js v2.6.14
+ * (c) 2014-2021 Evan You
  * Released under the MIT License.
  */
 /*  */
@@ -1913,13 +1913,14 @@ function assertProp (
       type = [type];
     }
     for (var i = 0; i < type.length && !valid; i++) {
-      var assertedType = assertType(value, type[i]);
+      var assertedType = assertType(value, type[i], vm);
       expectedTypes.push(assertedType.expectedType || '');
       valid = assertedType.valid;
     }
   }
 
-  if (!valid) {
+  var haveExpectedTypes = expectedTypes.some(function (t) { return t; });
+  if (!valid && haveExpectedTypes) {
     warn(
       getInvalidTypeMessage(name, value, expectedTypes),
       vm
@@ -1937,9 +1938,9 @@ function assertProp (
   }
 }
 
-var simpleCheckRE = /^(String|Number|Boolean|Function|Symbol)$/;
+var simpleCheckRE = /^(String|Number|Boolean|Function|Symbol|BigInt)$/;
 
-function assertType (value, type) {
+function assertType (value, type, vm) {
   var valid;
   var expectedType = getType(type);
   if (simpleCheckRE.test(expectedType)) {
@@ -1954,7 +1955,12 @@ function assertType (value, type) {
   } else if (expectedType === 'Array') {
     valid = Array.isArray(value);
   } else {
-    valid = value instanceof type;
+    try {
+      valid = value instanceof type;
+    } catch (e) {
+      warn('Invalid prop type: "' + String(type) + '" is not a constructor', vm);
+      valid = false;
+    }
   }
   return {
     valid: valid,
@@ -1962,13 +1968,15 @@ function assertType (value, type) {
   }
 }
 
+var functionTypeCheckRE = /^\s*function (\w+)/;
+
 /**
  * Use function string name to check built-in types,
  * because a simple equality check will fail when running
  * across different vms / iframes.
  */
 function getType (fn) {
-  var match = fn && fn.toString().match(/^\s*function (\w+)/);
+  var match = fn && fn.toString().match(functionTypeCheckRE);
   return match ? match[1] : ''
 }
 
@@ -1993,18 +2001,19 @@ function getInvalidTypeMessage (name, value, expectedTypes) {
     " Expected " + (expectedTypes.map(capitalize).join(', '));
   var expectedType = expectedTypes[0];
   var receivedType = toRawType(value);
-  var expectedValue = styleValue(value, expectedType);
-  var receivedValue = styleValue(value, receivedType);
   // check if we need to specify expected value
-  if (expectedTypes.length === 1 &&
-      isExplicable(expectedType) &&
-      !isBoolean(expectedType, receivedType)) {
-    message += " with value " + expectedValue;
+  if (
+    expectedTypes.length === 1 &&
+    isExplicable(expectedType) &&
+    isExplicable(typeof value) &&
+    !isBoolean(expectedType, receivedType)
+  ) {
+    message += " with value " + (styleValue(value, expectedType));
   }
   message += ", got " + receivedType + " ";
   // check if we need to specify received value
   if (isExplicable(receivedType)) {
-    message += "with value " + receivedValue + ".";
+    message += "with value " + (styleValue(value, receivedType)) + ".";
   }
   return message
 }
@@ -2019,9 +2028,9 @@ function styleValue (value, type) {
   }
 }
 
+var EXPLICABLE_TYPES = ['string', 'number', 'boolean'];
 function isExplicable (value) {
-  var explicitTypes = ['string', 'number', 'boolean'];
-  return explicitTypes.some(function (elem) { return value.toLowerCase() === elem; })
+  return EXPLICABLE_TYPES.some(function (elem) { return value.toLowerCase() === elem; })
 }
 
 function isBoolean () {
@@ -2622,6 +2631,12 @@ function isWhitespace (node) {
 
 /*  */
 
+function isAsyncPlaceholder (node) {
+  return node.isComment && node.asyncFactory
+}
+
+/*  */
+
 function normalizeScopedSlots (
   slots,
   normalSlots,
@@ -2678,9 +2693,10 @@ function normalizeScopedSlot(normalSlots, key, fn) {
     res = res && typeof res === 'object' && !Array.isArray(res)
       ? [res] // single vnode
       : normalizeChildren(res);
+    var vnode = res && res[0];
     return res && (
-      res.length === 0 ||
-      (res.length === 1 && res[0].isComment) // #9658
+      !vnode ||
+      (res.length === 1 && vnode.isComment && !isAsyncPlaceholder(vnode)) // #9658, #10391
     ) ? undefined
       : res
   };
@@ -2753,21 +2769,26 @@ function renderList (
  */
 function renderSlot (
   name,
-  fallback,
+  fallbackRender,
   props,
   bindObject
 ) {
   var scopedSlotFn = this.$scopedSlots[name];
   var nodes;
-  if (scopedSlotFn) { // scoped slot
+  if (scopedSlotFn) {
+    // scoped slot
     props = props || {};
     if (bindObject) {
       if (false) {}
       props = extend(extend({}, bindObject), props);
     }
-    nodes = scopedSlotFn(props) || fallback;
+    nodes =
+      scopedSlotFn(props) ||
+      (typeof fallbackRender === 'function' ? fallbackRender() : fallbackRender);
   } else {
-    nodes = this.$slots[name] || fallback;
+    nodes =
+      this.$slots[name] ||
+      (typeof fallbackRender === 'function' ? fallbackRender() : fallbackRender);
   }
 
   var target = props && props.slot;
@@ -2817,6 +2838,7 @@ function checkKeyCodes (
   } else if (eventKeyName) {
     return hyphenate(eventKeyName) !== key
   }
+  return eventKeyCode === undefined
 }
 
 /*  */
@@ -3332,8 +3354,10 @@ function createComponent (
 }
 
 function createComponentInstanceForVnode (
-  vnode, // we know it's MountedComponentVNode but flow doesn't
-  parent // activeInstance in lifecycle state
+  // we know it's MountedComponentVNode but flow doesn't
+  vnode,
+  // activeInstance in lifecycle state
+  parent
 ) {
   var options = {
     _isComponent: true,
@@ -3763,12 +3787,6 @@ function resolveAsyncComponent (
 
 /*  */
 
-function isAsyncPlaceholder (node) {
-  return node.isComment && node.asyncFactory
-}
-
-/*  */
-
 function getFirstComponentChild (children) {
   if (Array.isArray(children)) {
     for (var i = 0; i < children.length; i++) {
@@ -4089,7 +4107,8 @@ function updateChildComponent (
   var hasDynamicScopedSlot = !!(
     (newScopedSlots && !newScopedSlots.$stable) ||
     (oldScopedSlots !== emptyObject && !oldScopedSlots.$stable) ||
-    (newScopedSlots && vm.$scopedSlots.$key !== newScopedSlots.$key)
+    (newScopedSlots && vm.$scopedSlots.$key !== newScopedSlots.$key) ||
+    (!newScopedSlots && vm.$scopedSlots.$key)
   );
 
   // Any static slot children from the parent may have changed during parent's
@@ -4518,11 +4537,8 @@ Watcher.prototype.run = function run () {
       var oldValue = this.value;
       this.value = value;
       if (this.user) {
-        try {
-          this.cb.call(this.vm, value, oldValue);
-        } catch (e) {
-          handleError(e, this.vm, ("callback for watcher \"" + (this.expression) + "\""));
-        }
+        var info = "callback for watcher \"" + (this.expression) + "\"";
+        invokeWithErrorHandling(this.cb, this.vm, [value, oldValue], this.vm, info);
       } else {
         this.cb.call(this.vm, value, oldValue);
       }
@@ -4814,11 +4830,10 @@ function stateMixin (Vue) {
     options.user = true;
     var watcher = new Watcher(vm, expOrFn, cb, options);
     if (options.immediate) {
-      try {
-        cb.call(vm, watcher.value);
-      } catch (error) {
-        handleError(error, vm, ("callback for immediate watcher \"" + (watcher.expression) + "\""));
-      }
+      var info = "callback for immediate watcher \"" + (watcher.expression) + "\"";
+      pushTarget();
+      invokeWithErrorHandling(cb, vm, [watcher.value], vm, info);
+      popTarget();
     }
     return function unwatchFn () {
       watcher.teardown();
@@ -5102,6 +5117,8 @@ function initAssetRegisters (Vue) {
 
 
 
+
+
 function getComponentName (opts) {
   return opts && (opts.Ctor.options.name || opts.tag)
 }
@@ -5123,9 +5140,9 @@ function pruneCache (keepAliveInstance, filter) {
   var keys = keepAliveInstance.keys;
   var _vnode = keepAliveInstance._vnode;
   for (var key in cache) {
-    var cachedNode = cache[key];
-    if (cachedNode) {
-      var name = getComponentName(cachedNode.componentOptions);
+    var entry = cache[key];
+    if (entry) {
+      var name = entry.name;
       if (name && !filter(name)) {
         pruneCacheEntry(cache, key, keys, _vnode);
       }
@@ -5139,9 +5156,9 @@ function pruneCacheEntry (
   keys,
   current
 ) {
-  var cached$$1 = cache[key];
-  if (cached$$1 && (!current || cached$$1.tag !== current.tag)) {
-    cached$$1.componentInstance.$destroy();
+  var entry = cache[key];
+  if (entry && (!current || entry.tag !== current.tag)) {
+    entry.componentInstance.$destroy();
   }
   cache[key] = null;
   remove(keys, key);
@@ -5159,6 +5176,32 @@ var KeepAlive = {
     max: [String, Number]
   },
 
+  methods: {
+    cacheVNode: function cacheVNode() {
+      var ref = this;
+      var cache = ref.cache;
+      var keys = ref.keys;
+      var vnodeToCache = ref.vnodeToCache;
+      var keyToCache = ref.keyToCache;
+      if (vnodeToCache) {
+        var tag = vnodeToCache.tag;
+        var componentInstance = vnodeToCache.componentInstance;
+        var componentOptions = vnodeToCache.componentOptions;
+        cache[keyToCache] = {
+          name: getComponentName(componentOptions),
+          tag: tag,
+          componentInstance: componentInstance,
+        };
+        keys.push(keyToCache);
+        // prune oldest entry
+        if (this.max && keys.length > parseInt(this.max)) {
+          pruneCacheEntry(cache, keys[0], keys, this._vnode);
+        }
+        this.vnodeToCache = null;
+      }
+    }
+  },
+
   created: function created () {
     this.cache = Object.create(null);
     this.keys = [];
@@ -5173,12 +5216,17 @@ var KeepAlive = {
   mounted: function mounted () {
     var this$1 = this;
 
+    this.cacheVNode();
     this.$watch('include', function (val) {
       pruneCache(this$1, function (name) { return matches(val, name); });
     });
     this.$watch('exclude', function (val) {
       pruneCache(this$1, function (name) { return !matches(val, name); });
     });
+  },
+
+  updated: function updated () {
+    this.cacheVNode();
   },
 
   render: function render () {
@@ -5214,12 +5262,9 @@ var KeepAlive = {
         remove(keys, key);
         keys.push(key);
       } else {
-        cache[key] = vnode;
-        keys.push(key);
-        // prune oldest entry
-        if (this.max && keys.length > parseInt(this.max)) {
-          pruneCacheEntry(cache, keys[0], keys, this._vnode);
-        }
+        // delay setting the cache until update
+        this.vnodeToCache = vnode;
+        this.keyToCache = key;
       }
 
       vnode.data.keepAlive = true;
@@ -5296,7 +5341,7 @@ Object.defineProperty(Vue, 'FunctionalRenderContext', {
   value: FunctionalRenderContext
 });
 
-Vue.version = '2.6.12';
+Vue.version = '2.6.14';
 
 /*  */
 
@@ -5333,7 +5378,7 @@ var isBooleanAttr = makeMap(
   'default,defaultchecked,defaultmuted,defaultselected,defer,disabled,' +
   'enabled,formnovalidate,hidden,indeterminate,inert,ismap,itemscope,loop,multiple,' +
   'muted,nohref,noresize,noshade,novalidate,nowrap,open,pauseonexit,readonly,' +
-  'required,reversed,scoped,seamless,selected,sortable,translate,' +
+  'required,reversed,scoped,seamless,selected,sortable,' +
   'truespeed,typemustmatch,visible'
 );
 
@@ -5457,7 +5502,7 @@ var isHTMLTag = makeMap(
 // contain child elements.
 var isSVG = makeMap(
   'svg,animate,circle,clippath,cursor,defs,desc,ellipse,filter,font-face,' +
-  'foreignObject,g,glyph,image,line,marker,mask,missing-glyph,path,pattern,' +
+  'foreignobject,g,glyph,image,line,marker,mask,missing-glyph,path,pattern,' +
   'polygon,polyline,rect,switch,symbol,text,textpath,tspan,use,view',
   true
 );
@@ -5658,7 +5703,8 @@ var hooks = ['create', 'activate', 'update', 'remove', 'destroy'];
 
 function sameVnode (a, b) {
   return (
-    a.key === b.key && (
+    a.key === b.key &&
+    a.asyncFactory === b.asyncFactory && (
       (
         a.tag === b.tag &&
         a.isComment === b.isComment &&
@@ -5666,7 +5712,6 @@ function sameVnode (a, b) {
         sameInputType(a, b)
       ) || (
         isTrue(a.isAsyncPlaceholder) &&
-        a.asyncFactory === b.asyncFactory &&
         isUndef(b.asyncFactory.error)
       )
     )
@@ -6511,7 +6556,7 @@ function updateAttrs (oldVnode, vnode) {
     cur = attrs[key];
     old = oldAttrs[key];
     if (old !== cur) {
-      setAttr(elm, key, cur);
+      setAttr(elm, key, cur, vnode.data.pre);
     }
   }
   // #4391: in IE9, setting type can reset value for input[type=radio]
@@ -6531,8 +6576,8 @@ function updateAttrs (oldVnode, vnode) {
   }
 }
 
-function setAttr (el, key, value) {
-  if (el.tagName.indexOf('-') > -1) {
+function setAttr (el, key, value, isInPre) {
+  if (isInPre || el.tagName.indexOf('-') > -1) {
     baseSetAttr(el, key, value);
   } else if (isBooleanAttr(key)) {
     // set attribute for blank value
@@ -8210,7 +8255,7 @@ if (inBrowser) {
 
 /* harmony default export */ __webpack_exports__["a"] = (Vue);
 
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__("d648")))
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__("c8ba")))
 
 /***/ }),
 
@@ -8231,14 +8276,15 @@ if (inBrowser) {
   var undefined;
 
   /** Used as the semantic version number. */
-  var VERSION = '4.17.20';
+  var VERSION = '4.17.21';
 
   /** Used as the size to enable large array optimizations. */
   var LARGE_ARRAY_SIZE = 200;
 
   /** Error message constants. */
   var CORE_ERROR_TEXT = 'Unsupported core-js use. Try https://npms.io/search?q=ponyfill.',
-      FUNC_ERROR_TEXT = 'Expected a function';
+      FUNC_ERROR_TEXT = 'Expected a function',
+      INVALID_TEMPL_VAR_ERROR_TEXT = 'Invalid `variable` option passed into `_.template`';
 
   /** Used to stand-in for `undefined` hash values. */
   var HASH_UNDEFINED = '__lodash_hash_undefined__';
@@ -8371,10 +8417,11 @@ if (inBrowser) {
   var reRegExpChar = /[\\^$.*+?()[\]{}|]/g,
       reHasRegExpChar = RegExp(reRegExpChar.source);
 
-  /** Used to match leading and trailing whitespace. */
-  var reTrim = /^\s+|\s+$/g,
-      reTrimStart = /^\s+/,
-      reTrimEnd = /\s+$/;
+  /** Used to match leading whitespace. */
+  var reTrimStart = /^\s+/;
+
+  /** Used to match a single whitespace character. */
+  var reWhitespace = /\s/;
 
   /** Used to match wrap detail comments. */
   var reWrapComment = /\{(?:\n\/\* \[wrapped with .+\] \*\/)?\n?/,
@@ -8383,6 +8430,18 @@ if (inBrowser) {
 
   /** Used to match words composed of alphanumeric characters. */
   var reAsciiWord = /[^\x00-\x2f\x3a-\x40\x5b-\x60\x7b-\x7f]+/g;
+
+  /**
+   * Used to validate the `validate` option in `_.template` variable.
+   *
+   * Forbids characters which could potentially change the meaning of the function argument definition:
+   * - "()," (modification of function parameters)
+   * - "=" (default value)
+   * - "[]{}" (destructuring of function parameters)
+   * - "/" (beginning of a comment)
+   * - whitespace
+   */
+  var reForbiddenIdentifierChars = /[()=,{}\[\]\/\s]/;
 
   /** Used to match backslashes in property paths. */
   var reEscapeChar = /\\(\\)?/g;
@@ -9213,6 +9272,19 @@ if (inBrowser) {
   }
 
   /**
+   * The base implementation of `_.trim`.
+   *
+   * @private
+   * @param {string} string The string to trim.
+   * @returns {string} Returns the trimmed string.
+   */
+  function baseTrim(string) {
+    return string
+      ? string.slice(0, trimmedEndIndex(string) + 1).replace(reTrimStart, '')
+      : string;
+  }
+
+  /**
    * The base implementation of `_.unary` without support for storing metadata.
    *
    * @private
@@ -9543,6 +9615,21 @@ if (inBrowser) {
     return hasUnicode(string)
       ? unicodeToArray(string)
       : asciiToArray(string);
+  }
+
+  /**
+   * Used by `_.trim` and `_.trimEnd` to get the index of the last non-whitespace
+   * character of `string`.
+   *
+   * @private
+   * @param {string} string The string to inspect.
+   * @returns {number} Returns the index of the last non-whitespace character.
+   */
+  function trimmedEndIndex(string) {
+    var index = string.length;
+
+    while (index-- && reWhitespace.test(string.charAt(index))) {}
+    return index;
   }
 
   /**
@@ -20713,7 +20800,7 @@ if (inBrowser) {
       if (typeof value != 'string') {
         return value === 0 ? value : +value;
       }
-      value = value.replace(reTrim, '');
+      value = baseTrim(value);
       var isBinary = reIsBinary.test(value);
       return (isBinary || reIsOctal.test(value))
         ? freeParseInt(value.slice(2), isBinary ? 2 : 8)
@@ -23085,6 +23172,12 @@ if (inBrowser) {
       if (!variable) {
         source = 'with (obj) {\n' + source + '\n}\n';
       }
+      // Throw an error if a forbidden character was found in `variable`, to prevent
+      // potential command injection attacks.
+      else if (reForbiddenIdentifierChars.test(variable)) {
+        throw new Error(INVALID_TEMPL_VAR_ERROR_TEXT);
+      }
+
       // Cleanup code by stripping empty strings.
       source = (isEvaluating ? source.replace(reEmptyStringLeading, '') : source)
         .replace(reEmptyStringMiddle, '$1')
@@ -23198,7 +23291,7 @@ if (inBrowser) {
     function trim(string, chars, guard) {
       string = toString(string);
       if (string && (guard || chars === undefined)) {
-        return string.replace(reTrim, '');
+        return baseTrim(string);
       }
       if (!string || !(chars = baseToString(chars))) {
         return string;
@@ -23233,7 +23326,7 @@ if (inBrowser) {
     function trimEnd(string, chars, guard) {
       string = toString(string);
       if (string && (guard || chars === undefined)) {
-        return string.replace(reTrimEnd, '');
+        return string.slice(0, trimmedEndIndex(string) + 1);
       }
       if (!string || !(chars = baseToString(chars))) {
         return string;
@@ -25371,7 +25464,7 @@ if (inBrowser) {
   else {}
 }.call(this));
 
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__("d648"), __webpack_require__("6a88")(module)))
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__("c8ba"), __webpack_require__("62e4")(module)))
 
 /***/ }),
 
@@ -41553,2373 +41646,21 @@ return src;
 
 /***/ }),
 
-/***/ "380f":
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/lib/commands/build/setPublicPath.js
-// This file is imported into lib/wc client bundles.
-
-if (typeof window !== 'undefined') {
-  if (true) {
-    __webpack_require__("5f7e")
-  }
-
-  var setPublicPath_i
-  if ((setPublicPath_i = window.document.currentScript) && (setPublicPath_i = setPublicPath_i.src.match(/(.+\/)[^/]+\.js(\?.*)?$/))) {
-    __webpack_require__.p = setPublicPath_i[1] // eslint-disable-line
-  }
-}
-
-// Indicate to webpack that this file can be concatenated
-/* harmony default export */ var setPublicPath = (null);
-
-// EXTERNAL MODULE: ./node_modules/vue/dist/vue.runtime.esm.js
-var vue_runtime_esm = __webpack_require__("2b0e");
-
-// CONCATENATED MODULE: ./node_modules/vue-custom-element/dist/vue-custom-element.esm.js
-/**
-  * vue-custom-element v3.2.14
-  * (c) 2020 Karol Fabjańczuk
-  * @license MIT
-  */
-/**
- * ES6 Object.getPrototypeOf Polyfill
- * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/setPrototypeOf
- */
-
-Object.setPrototypeOf = Object.setPrototypeOf || setPrototypeOf;
-
-function setPrototypeOf(obj, proto) {
-  obj.__proto__ = proto;
-  return obj;
-}
-
-var setPrototypeOf_1 = setPrototypeOf.bind(Object);
-
-function isES2015() {
-  if (typeof Symbol === 'undefined' || typeof Reflect === 'undefined' || typeof Proxy === 'undefined' || Object.isSealed(Proxy)) return false;
-
-  return true;
-}
-
-var isES2015$1 = isES2015();
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-function _CustomElement() {
-  return Reflect.construct(HTMLElement, [], this.__proto__.constructor);
-}
-
-
-Object.setPrototypeOf(_CustomElement.prototype, HTMLElement.prototype);
-Object.setPrototypeOf(_CustomElement, HTMLElement);
-function registerCustomElement(tag) {
-  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-
-  if (typeof customElements === 'undefined') {
-    return;
-  }
-
-  function constructorCallback() {
-    if (options.shadow === true && HTMLElement.prototype.attachShadow) {
-      this.attachShadow({ mode: 'open' });
-    }
-    typeof options.constructorCallback === 'function' && options.constructorCallback.call(this);
-  }
-  function connectedCallback() {
-    typeof options.connectedCallback === 'function' && options.connectedCallback.call(this);
-  }
-
-  function disconnectedCallback() {
-    typeof options.disconnectedCallback === 'function' && options.disconnectedCallback.call(this);
-  }
-
-  function attributeChangedCallback(name, oldValue, value) {
-    typeof options.attributeChangedCallback === 'function' && options.attributeChangedCallback.call(this, name, oldValue, value);
-  }
-
-  function define(tagName, CustomElement) {
-    var existingCustomElement = customElements.get(tagName);
-    return typeof existingCustomElement !== 'undefined' ? existingCustomElement : customElements.define(tagName, CustomElement);
-  }
-
-  if (isES2015$1) {
-    var CustomElement = function (_CustomElement2) {
-      _inherits(CustomElement, _CustomElement2);
-
-      function CustomElement(self) {
-        var _ret;
-
-        _classCallCheck(this, CustomElement);
-
-        var _this = _possibleConstructorReturn(this, (CustomElement.__proto__ || Object.getPrototypeOf(CustomElement)).call(this));
-
-        var me = self ? HTMLElement.call(self) : _this;
-
-        constructorCallback.call(me);
-        return _ret = me, _possibleConstructorReturn(_this, _ret);
-      }
-
-      _createClass(CustomElement, null, [{
-        key: 'observedAttributes',
-        get: function get() {
-          return options.observedAttributes || [];
-        }
-      }]);
-
-      return CustomElement;
-    }(_CustomElement);
-
-    CustomElement.prototype.connectedCallback = connectedCallback;
-    CustomElement.prototype.disconnectedCallback = disconnectedCallback;
-    CustomElement.prototype.attributeChangedCallback = attributeChangedCallback;
-
-    define(tag, CustomElement);
-    return CustomElement;
-  } else {
-    var _CustomElement3 = function _CustomElement3(self) {
-      var me = self ? HTMLElement.call(self) : this;
-
-      constructorCallback.call(me);
-      return me;
-    };
-
-    _CustomElement3.observedAttributes = options.observedAttributes || [];
-
-    _CustomElement3.prototype = Object.create(HTMLElement.prototype, {
-      constructor: {
-        configurable: true,
-        writable: true,
-        value: _CustomElement3
-      }
-    });
-
-    _CustomElement3.prototype.connectedCallback = connectedCallback;
-    _CustomElement3.prototype.disconnectedCallback = disconnectedCallback;
-    _CustomElement3.prototype.attributeChangedCallback = attributeChangedCallback;
-
-    define(tag, _CustomElement3);
-    return _CustomElement3;
-  }
-}
-
-var camelizeRE = /-(\w)/g;
-var camelize = function camelize(str) {
-  return str.replace(camelizeRE, function (_, c) {
-    return c ? c.toUpperCase() : '';
-  });
-};
-var hyphenateRE = /([^-])([A-Z])/g;
-var hyphenate = function hyphenate(str) {
-  return str.replace(hyphenateRE, '$1-$2').replace(hyphenateRE, '$1-$2').toLowerCase();
-};
-
-function toArray(list) {
-  var start = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
-
-  var i = list.length - start;
-  var ret = new Array(i);
-  while (i--) {
-    ret[i] = list[i + start];
-  }
-  return ret;
-}
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-function convertAttributeValue(value, overrideType) {
-  if (value === null || value === undefined) {
-    return overrideType === Boolean ? false : undefined;
-  }
-  var propsValue = value;
-  var isBoolean = ['true', 'false'].indexOf(value) > -1;
-  var valueParsed = parseFloat(propsValue, 10);
-  var isNumber = !isNaN(valueParsed) && isFinite(propsValue) && typeof propsValue === 'string' && !propsValue.match(/^0+[^.]\d*$/g);
-
-  if (overrideType && overrideType !== Boolean && (typeof propsValue === 'undefined' ? 'undefined' : _typeof(propsValue)) !== overrideType) {
-    propsValue = overrideType(value);
-  } else if (isBoolean || overrideType === Boolean) {
-    propsValue = propsValue === '' ? true : propsValue === 'true' || propsValue === true;
-  } else if (isNumber) {
-    propsValue = valueParsed;
-  }
-
-  return propsValue;
-}
-
-function extractProps(collection, props) {
-  if (collection && collection.length) {
-    collection.forEach(function (prop) {
-      var camelCaseProp = camelize(prop);
-      props.camelCase.indexOf(camelCaseProp) === -1 && props.camelCase.push(camelCaseProp);
-    });
-  } else if (collection && (typeof collection === 'undefined' ? 'undefined' : _typeof(collection)) === 'object') {
-    for (var prop in collection) {
-      var camelCaseProp = camelize(prop);
-      props.camelCase.indexOf(camelCaseProp) === -1 && props.camelCase.push(camelCaseProp);
-
-      if (collection[camelCaseProp] && collection[camelCaseProp].type) {
-        props.types[prop] = [].concat(collection[camelCaseProp].type)[0];
-      }
-    }
-  }
-}
-
-function getProps() {
-  var componentDefinition = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-
-  var props = {
-    camelCase: [],
-    hyphenate: [],
-    types: {}
-  };
-
-  if (componentDefinition.mixins) {
-    componentDefinition.mixins.forEach(function (mixin) {
-      extractProps(mixin.props, props);
-    });
-  }
-
-  if (componentDefinition.extends && componentDefinition.extends.props) {
-    var parentProps = componentDefinition.extends.props;
-
-
-    extractProps(parentProps, props);
-  }
-
-  extractProps(componentDefinition.props, props);
-
-  props.camelCase.forEach(function (prop) {
-    props.hyphenate.push(hyphenate(prop));
-  });
-
-  return props;
-}
-
-function reactiveProps(element, props) {
-  props.camelCase.forEach(function (name, index) {
-    Object.defineProperty(element, name, {
-      get: function get() {
-        return this.__vue_custom_element__[name];
-      },
-      set: function set(value) {
-        if (((typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object' || typeof value === 'function') && this.__vue_custom_element__) {
-          var propName = props.camelCase[index];
-          this.__vue_custom_element__[propName] = value;
-        } else {
-          var type = props.types[props.camelCase[index]];
-          this.setAttribute(props.hyphenate[index], convertAttributeValue(value, type));
-        }
-      }
-    });
-  });
-}
-
-function getPropsData(element, componentDefinition, props) {
-  var propsData = componentDefinition.propsData || {};
-
-  props.hyphenate.forEach(function (name, index) {
-    var propCamelCase = props.camelCase[index];
-    var propValue = element.attributes[name] || element[propCamelCase];
-
-    var type = null;
-    if (props.types[propCamelCase]) {
-      type = props.types[propCamelCase];
-    }
-
-    if (propValue instanceof Attr) {
-      propsData[propCamelCase] = convertAttributeValue(propValue.value, type);
-    } else if (typeof propValue !== 'undefined') {
-      propsData[propCamelCase] = propValue;
-    }
-  });
-
-  return propsData;
-}
-
-function getAttributes(children) {
-  var attributes = {};
-
-  toArray(children.attributes).forEach(function (attribute) {
-    attributes[attribute.nodeName === 'vue-slot' ? 'slot' : attribute.nodeName] = attribute.nodeValue;
-  });
-
-  return attributes;
-}
-
-function getChildNodes(element) {
-  if (element.childNodes.length) return element.childNodes;
-  if (element.content && element.content.childNodes && element.content.childNodes.length) {
-    return element.content.childNodes;
-  }
-
-  var placeholder = document.createElement('div');
-
-  placeholder.innerHTML = element.innerHTML;
-
-  return placeholder.childNodes;
-}
-
-function templateElement(createElement, element, elementOptions) {
-  var templateChildren = getChildNodes(element);
-
-  var vueTemplateChildren = toArray(templateChildren).map(function (child) {
-    if (child.nodeName === '#text') return child.nodeValue;
-
-    return createElement(child.tagName, {
-      attrs: getAttributes(child),
-      domProps: {
-        innerHTML: child.innerHTML
-      }
-    });
-  });
-
-  elementOptions.slot = element.id;
-
-  return createElement('template', elementOptions, vueTemplateChildren);
-}
-
-function getSlots() {
-  var children = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
-  var createElement = arguments[1];
-
-  var slots = [];
-  toArray(children).forEach(function (child) {
-    if (child.nodeName === '#text') {
-      if (child.nodeValue.trim()) {
-        slots.push(createElement('span', child.nodeValue));
-      }
-    } else if (child.nodeName !== '#comment') {
-      var attributes = getAttributes(child);
-      var elementOptions = {
-        attrs: attributes,
-        domProps: {
-          innerHTML: child.innerHTML === '' ? child.innerText : child.innerHTML
-        }
-      };
-
-      if (attributes.slot) {
-        elementOptions.slot = attributes.slot;
-        attributes.slot = undefined;
-      }
-
-      var slotVueElement = child.tagName === 'TEMPLATE' ? templateElement(createElement, child, elementOptions) : createElement(child.tagName, elementOptions);
-
-      slots.push(slotVueElement);
-    }
-  });
-
-  return slots;
-}
-
-function customEvent(eventName, detail) {
-  var params = { bubbles: false, cancelable: false, detail: detail };
-  var event = void 0;
-  if (typeof window.CustomEvent === 'function') {
-    event = new CustomEvent(eventName, params);
-  } else {
-    event = document.createEvent('CustomEvent');
-    event.initCustomEvent(eventName, params.bubbles, params.cancelable, params.detail);
-  }
-  return event;
-}
-
-function customEmit(element, eventName) {
-  for (var _len = arguments.length, args = Array(_len > 2 ? _len - 2 : 0), _key = 2; _key < _len; _key++) {
-    args[_key - 2] = arguments[_key];
-  }
-
-  var event = customEvent(eventName, [].concat(args));
-  element.dispatchEvent(event);
-}
-
-function createVueInstance(element, Vue, componentDefinition, props, options) {
-  if (!element.__vue_custom_element__) {
-    var beforeCreate = function beforeCreate() {
-      this.$emit = function emit() {
-        var _proto__$$emit;
-
-        for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
-          args[_key] = arguments[_key];
-        }
-
-        customEmit.apply(undefined, [element].concat(args));
-        this.__proto__ && (_proto__$$emit = this.__proto__.$emit).call.apply(_proto__$$emit, [this].concat(args));
-      };
-    };
-
-    var ComponentDefinition = Vue.util.extend({}, componentDefinition);
-    var propsData = getPropsData(element, ComponentDefinition, props);
-    var vueVersion = Vue.version && parseInt(Vue.version.split('.')[0], 10) || 0;
-
-    ComponentDefinition.beforeCreate = [].concat(ComponentDefinition.beforeCreate || [], beforeCreate);
-
-    if (ComponentDefinition._compiled) {
-      var constructorOptions = {};
-      var _constructor = ComponentDefinition._Ctor;
-      if (_constructor) {
-        constructorOptions = Object.keys(_constructor).map(function (key) {
-          return _constructor[key];
-        })[0].options;
-      }
-      constructorOptions.beforeCreate = ComponentDefinition.beforeCreate;
-    }
-
-    var rootElement = void 0;
-
-    if (vueVersion >= 2) {
-      var elementOriginalChildren = element.cloneNode(true).childNodes;
-      rootElement = {
-        propsData: propsData,
-        props: props.camelCase,
-        computed: {
-          reactiveProps: function reactiveProps$$1() {
-            var _this = this;
-
-            var reactivePropsList = {};
-            props.camelCase.forEach(function (prop) {
-              typeof _this[prop] !== 'undefined' && (reactivePropsList[prop] = _this[prop]);
-            });
-
-            return reactivePropsList;
-          }
-        },
-        render: function render(createElement) {
-          var data = {
-            props: this.reactiveProps
-          };
-
-          return createElement(ComponentDefinition, data, getSlots(elementOriginalChildren, createElement));
-        }
-      };
-    } else if (vueVersion === 1) {
-      rootElement = ComponentDefinition;
-      rootElement.propsData = propsData;
-    } else {
-      rootElement = ComponentDefinition;
-      var propsWithDefault = {};
-      Object.keys(propsData).forEach(function (prop) {
-        propsWithDefault[prop] = { default: propsData[prop] };
-      });
-      rootElement.props = propsWithDefault;
-    }
-
-    var elementInnerHtml = vueVersion >= 2 ? '<div></div>' : ('<div>' + element.innerHTML + '</div>').replace(/vue-slot=/g, 'slot=');
-    if (options.shadow && element.shadowRoot) {
-      element.shadowRoot.innerHTML = elementInnerHtml;
-      rootElement.el = element.shadowRoot.children[0];
-    } else {
-      element.innerHTML = elementInnerHtml;
-      rootElement.el = element.children[0];
-    }
-
-    reactiveProps(element, props);
-
-    if (typeof options.beforeCreateVueInstance === 'function') {
-      rootElement = options.beforeCreateVueInstance(rootElement) || rootElement;
-    }
-
-    element.__vue_custom_element__ = new Vue(rootElement);
-    element.__vue_custom_element_props__ = props;
-    element.getVueInstance = function () {
-      var vueInstance = element.__vue_custom_element__;
-      return vueInstance.$children.length ? vueInstance.$children[0] : vueInstance;
-    };
-
-    if (options.shadow && options.shadowCss && element.shadowRoot) {
-      var style = document.createElement('style');
-      style.type = 'text/css';
-      style.appendChild(document.createTextNode(options.shadowCss));
-
-      element.shadowRoot.appendChild(style);
-    }
-    element.removeAttribute('vce-cloak');
-    element.setAttribute('vce-ready', '');
-    customEmit(element, 'vce-ready');
-  }
-}
-
-function install(Vue) {
-  Vue.customElement = function vueCustomElement(tag, componentDefinition) {
-    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-
-    var isAsyncComponent = typeof componentDefinition === 'function';
-    var optionsProps = isAsyncComponent && { props: options.props || [] };
-    var props = getProps(isAsyncComponent ? optionsProps : componentDefinition);
-
-    var CustomElement = registerCustomElement(tag, {
-      constructorCallback: function constructorCallback() {
-        typeof options.constructorCallback === 'function' && options.constructorCallback.call(this);
-      },
-      connectedCallback: function connectedCallback() {
-        var _this = this;
-
-        var asyncComponentPromise = isAsyncComponent && componentDefinition();
-        var isAsyncComponentPromise = asyncComponentPromise && asyncComponentPromise.then && typeof asyncComponentPromise.then === 'function';
-
-        typeof options.connectedCallback === 'function' && options.connectedCallback.call(this);
-
-        if (isAsyncComponent && !isAsyncComponentPromise) {
-          throw new Error('Async component ' + tag + ' do not returns Promise');
-        }
-        if (!this.__detached__) {
-          if (isAsyncComponentPromise) {
-            asyncComponentPromise.then(function (lazyLoadedComponent) {
-              var lazyLoadedComponentProps = getProps(lazyLoadedComponent);
-              createVueInstance(_this, Vue, lazyLoadedComponent, lazyLoadedComponentProps, options);
-              typeof options.vueInstanceCreatedCallback === 'function' && options.vueInstanceCreatedCallback.call(_this);
-            });
-          } else {
-            createVueInstance(this, Vue, componentDefinition, props, options);
-            typeof options.vueInstanceCreatedCallback === 'function' && options.vueInstanceCreatedCallback.call(this);
-          }
-        }
-
-        this.__detached__ = false;
-      },
-      disconnectedCallback: function disconnectedCallback() {
-        var _this2 = this;
-
-        this.__detached__ = true;
-        typeof options.disconnectedCallback === 'function' && options.disconnectedCallback.call(this);
-
-        options.destroyTimeout !== null && setTimeout(function () {
-          if (_this2.__detached__ && _this2.__vue_custom_element__) {
-            _this2.__detached__ = false;
-            _this2.__vue_custom_element__.$destroy(true);
-            delete _this2.__vue_custom_element__;
-            delete _this2.__vue_custom_element_props__;
-          }
-        }, options.destroyTimeout || 3000);
-      },
-      attributeChangedCallback: function attributeChangedCallback(name, oldValue, value) {
-        if (this.__vue_custom_element__ && typeof value !== 'undefined') {
-          var nameCamelCase = camelize(name);
-          typeof options.attributeChangedCallback === 'function' && options.attributeChangedCallback.call(this, name, oldValue, value);
-          var type = this.__vue_custom_element_props__.types[nameCamelCase];
-          this.__vue_custom_element__[nameCamelCase] = convertAttributeValue(value, type);
-        }
-      },
-
-
-      observedAttributes: props.hyphenate,
-
-      shadow: !!options.shadow && !!HTMLElement.prototype.attachShadow
-    });
-
-    return CustomElement;
-  };
-}
-
-if (typeof window !== 'undefined' && window.Vue) {
-  window.Vue.use(install);
-  if (install.installed) {
-    install.installed = false;
-  }
-}
-
-/* harmony default export */ var vue_custom_element_esm = (install);
-
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"775ce834-vue-loader-template"}!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/compact-chart.vue?vue&type=template&id=42af12ac&
-var render = function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _c('div',{staticClass:"pw-100"},[_c(_vm.chart_opts.type,{directives:[{name:"show",rawName:"v-show",value:(!_vm.status),expression:"!status"}],tag:"component",staticClass:"pw-100",attrs:{"format":_vm.chart_opts,"status":_vm.status},on:{"update:status":function($event){_vm.status=$event}}}),(_vm.invalid_ctype)?_c('div',[_vm._v("Unsupported visual")]):_vm._e(),(_vm.status == "Loading")?_c('spinner-item'):(_vm.status)?_c('div',[_vm._v(_vm._s(_vm.status))]):_vm._e()],1)}
-var staticRenderFns = []
-
-
-// CONCATENATED MODULE: ./src/compact-chart.vue?vue&type=template&id=42af12ac&
-
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"775ce834-vue-loader-template"}!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/components/spinner-item.vue?vue&type=template&id=5efdb54f&
-var spinner_itemvue_type_template_id_5efdb54f_render = function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _vm._m(0)}
-var spinner_itemvue_type_template_id_5efdb54f_staticRenderFns = [function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _c('div',{staticClass:"spinner"},[_c('div',{staticClass:"loader"},[_c('div'),_c('div'),_c('div')])])}]
-
-
-// CONCATENATED MODULE: ./src/components/spinner-item.vue?vue&type=template&id=5efdb54f&
-
-// EXTERNAL MODULE: ./src/components/spinner-item.vue?vue&type=style&index=0&lang=scss&
-var spinner_itemvue_type_style_index_0_lang_scss_ = __webpack_require__("3d06");
-
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib/runtime/componentNormalizer.js
-/* globals __VUE_SSR_CONTEXT__ */
-
-// IMPORTANT: Do NOT use ES2015 features in this file (except for modules).
-// This module is a runtime utility for cleaner component module output and will
-// be included in the final webpack user bundle.
-
-function normalizeComponent (
-  scriptExports,
-  render,
-  staticRenderFns,
-  functionalTemplate,
-  injectStyles,
-  scopeId,
-  moduleIdentifier, /* server only */
-  shadowMode /* vue-cli only */
-) {
-  // Vue.extend constructor export interop
-  var options = typeof scriptExports === 'function'
-    ? scriptExports.options
-    : scriptExports
-
-  // render functions
-  if (render) {
-    options.render = render
-    options.staticRenderFns = staticRenderFns
-    options._compiled = true
-  }
-
-  // functional template
-  if (functionalTemplate) {
-    options.functional = true
-  }
-
-  // scopedId
-  if (scopeId) {
-    options._scopeId = 'data-v-' + scopeId
-  }
-
-  var hook
-  if (moduleIdentifier) { // server build
-    hook = function (context) {
-      // 2.3 injection
-      context =
-        context || // cached call
-        (this.$vnode && this.$vnode.ssrContext) || // stateful
-        (this.parent && this.parent.$vnode && this.parent.$vnode.ssrContext) // functional
-      // 2.2 with runInNewContext: true
-      if (!context && typeof __VUE_SSR_CONTEXT__ !== 'undefined') {
-        context = __VUE_SSR_CONTEXT__
-      }
-      // inject component styles
-      if (injectStyles) {
-        injectStyles.call(this, context)
-      }
-      // register component module identifier for async chunk inferrence
-      if (context && context._registeredComponents) {
-        context._registeredComponents.add(moduleIdentifier)
-      }
-    }
-    // used by ssr in case component is cached and beforeCreate
-    // never gets called
-    options._ssrRegister = hook
-  } else if (injectStyles) {
-    hook = shadowMode
-      ? function () { injectStyles.call(this, this.$root.$options.shadowRoot) }
-      : injectStyles
-  }
-
-  if (hook) {
-    if (options.functional) {
-      // for template-only hot-reload because in that case the render fn doesn't
-      // go through the normalizer
-      options._injectStyles = hook
-      // register for functional component in vue file
-      var originalRender = options.render
-      options.render = function renderWithStyleInjection (h, context) {
-        hook.call(context)
-        return originalRender(h, context)
-      }
-    } else {
-      // inject component registration as beforeCreate hook
-      var existing = options.beforeCreate
-      options.beforeCreate = existing
-        ? [].concat(existing, hook)
-        : [hook]
-    }
-  }
-
-  return {
-    exports: scriptExports,
-    options: options
-  }
-}
-
-// CONCATENATED MODULE: ./src/components/spinner-item.vue
-
-var script = {}
-
-
-
-/* normalize component */
-
-var component = normalizeComponent(
-  script,
-  spinner_itemvue_type_template_id_5efdb54f_render,
-  spinner_itemvue_type_template_id_5efdb54f_staticRenderFns,
-  false,
-  null,
-  null,
-  null
-  
-)
-
-/* harmony default export */ var spinner_item = (component.exports);
-// CONCATENATED MODULE: ./node_modules/vue-chartjs/es/mixins/index.js
-function dataHandler(newData, oldData) {
-  if (oldData) {
-    var chart = this.$data._chart;
-    var newDatasetLabels = newData.datasets.map(function (dataset) {
-      return dataset.label;
-    });
-    var oldDatasetLabels = oldData.datasets.map(function (dataset) {
-      return dataset.label;
-    });
-    var oldLabels = JSON.stringify(oldDatasetLabels);
-    var newLabels = JSON.stringify(newDatasetLabels);
-
-    if (newLabels === oldLabels && oldData.datasets.length === newData.datasets.length) {
-      newData.datasets.forEach(function (dataset, i) {
-        var oldDatasetKeys = Object.keys(oldData.datasets[i]);
-        var newDatasetKeys = Object.keys(dataset);
-        var deletionKeys = oldDatasetKeys.filter(function (key) {
-          return key !== '_meta' && newDatasetKeys.indexOf(key) === -1;
-        });
-        deletionKeys.forEach(function (deletionKey) {
-          delete chart.data.datasets[i][deletionKey];
-        });
-
-        for (var attribute in dataset) {
-          if (dataset.hasOwnProperty(attribute)) {
-            chart.data.datasets[i][attribute] = dataset[attribute];
-          }
-        }
-      });
-
-      if (newData.hasOwnProperty('labels')) {
-        chart.data.labels = newData.labels;
-        this.$emit('labels:update');
-      }
-
-      if (newData.hasOwnProperty('xLabels')) {
-        chart.data.xLabels = newData.xLabels;
-        this.$emit('xlabels:update');
-      }
-
-      if (newData.hasOwnProperty('yLabels')) {
-        chart.data.yLabels = newData.yLabels;
-        this.$emit('ylabels:update');
-      }
-
-      chart.update();
-      this.$emit('chart:update');
-    } else {
-      if (chart) {
-        chart.destroy();
-        this.$emit('chart:destroy');
-      }
-
-      this.renderChart(this.chartData, this.options);
-      this.$emit('chart:render');
-    }
-  } else {
-    if (this.$data._chart) {
-      this.$data._chart.destroy();
-
-      this.$emit('chart:destroy');
-    }
-
-    this.renderChart(this.chartData, this.options);
-    this.$emit('chart:render');
-  }
-}
-
-var reactiveData = {
-  data: function data() {
-    return {
-      chartData: null
-    };
-  },
-  watch: {
-    'chartData': dataHandler
-  }
-};
-var reactiveProp = {
-  props: {
-    chartData: {
-      type: Object,
-      required: true,
-      default: function _default() {}
-    }
-  },
-  watch: {
-    'chartData': dataHandler
-  }
-};
-/* harmony default export */ var mixins = ({
-  reactiveData: reactiveData,
-  reactiveProp: reactiveProp
-});
-// EXTERNAL MODULE: ./node_modules/chart.js/dist/Chart.js
-var Chart = __webpack_require__("30ef");
-var Chart_default = /*#__PURE__*/__webpack_require__.n(Chart);
-
-// CONCATENATED MODULE: ./node_modules/vue-chartjs/es/BaseCharts.js
-
-function generateChart(chartId, chartType) {
-  return {
-    render: function render(createElement) {
-      return createElement('div', {
-        style: this.styles,
-        class: this.cssClasses
-      }, [createElement('canvas', {
-        attrs: {
-          id: this.chartId,
-          width: this.width,
-          height: this.height
-        },
-        ref: 'canvas'
-      })]);
-    },
-    props: {
-      chartId: {
-        default: chartId,
-        type: String
-      },
-      width: {
-        default: 400,
-        type: Number
-      },
-      height: {
-        default: 400,
-        type: Number
-      },
-      cssClasses: {
-        type: String,
-        default: ''
-      },
-      styles: {
-        type: Object
-      },
-      plugins: {
-        type: Array,
-        default: function _default() {
-          return [];
-        }
-      }
-    },
-    data: function data() {
-      return {
-        _chart: null,
-        _plugins: this.plugins
-      };
-    },
-    methods: {
-      addPlugin: function addPlugin(plugin) {
-        this.$data._plugins.push(plugin);
-      },
-      generateLegend: function generateLegend() {
-        if (this.$data._chart) {
-          return this.$data._chart.generateLegend();
-        }
-      },
-      renderChart: function renderChart(data, options) {
-        if (this.$data._chart) this.$data._chart.destroy();
-        if (!this.$refs.canvas) throw new Error('Please remove the <template></template> tags from your chart component. See https://vue-chartjs.org/guide/#vue-single-file-components');
-        this.$data._chart = new Chart_default.a(this.$refs.canvas.getContext('2d'), {
-          type: chartType,
-          data: data,
-          options: options,
-          plugins: this.$data._plugins
-        });
-      }
-    },
-    beforeDestroy: function beforeDestroy() {
-      if (this.$data._chart) {
-        this.$data._chart.destroy();
-      }
-    }
-  };
-}
-var Bar = generateChart('bar-chart', 'bar');
-var HorizontalBar = generateChart('horizontalbar-chart', 'horizontalBar');
-var Doughnut = generateChart('doughnut-chart', 'doughnut');
-var Line = generateChart('line-chart', 'line');
-var Pie = generateChart('pie-chart', 'pie');
-var PolarArea = generateChart('polar-chart', 'polarArea');
-var Radar = generateChart('radar-chart', 'radar');
-var Bubble = generateChart('bubble-chart', 'bubble');
-var Scatter = generateChart('scatter-chart', 'scatter');
-/* harmony default export */ var BaseCharts = ({
-  Bar: Bar,
-  HorizontalBar: HorizontalBar,
-  Doughnut: Doughnut,
-  Line: Line,
-  Pie: Pie,
-  PolarArea: PolarArea,
-  Radar: Radar,
-  Bubble: Bubble,
-  Scatter: Scatter
-});
-// CONCATENATED MODULE: ./node_modules/vue-chartjs/es/index.js
-
-
-var VueCharts = {
-  Bar: Bar,
-  HorizontalBar: HorizontalBar,
-  Doughnut: Doughnut,
-  Line: Line,
-  Pie: Pie,
-  PolarArea: PolarArea,
-  Radar: Radar,
-  Bubble: Bubble,
-  Scatter: Scatter,
-  mixins: mixins,
-  generateChart: generateChart,
-  render: function render() {
-    return console.error('[vue-chartjs]: This is not a vue component. It is the whole object containing all vue components. Please import the named export or access the components over the dot notation. For more info visit https://vue-chartjs.org/#/home?id=quick-start');
-  }
-};
-/* harmony default export */ var es = (VueCharts);
-
-// CONCATENATED MODULE: ./src/chartjs-config.js
-var chartjs_config = {
-	"global": {
-		"defaultColor": "rgba(0,0,0,0.1)",
-		"defaultFontColor": "#666",
-		"defaultFontFamily": "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
-		"defaultFontSize": 12,
-		"defaultFontStyle": "normal",
-		"defaultLineHeight": 1.2,
-		"showLines": true,
-		"animation": {
-			"duration": 1000,
-			"easing": "easeOutQuart"
-		},
-		"elements": {
-			"arc": {
-				"backgroundColor": "rgba(0,0,0,0.1)",
-				"borderColor": "#fff",
-				"borderWidth": 2,
-				"borderAlign": "center"
-			},
-			"line": {
-				"tension": 0.4,
-				"backgroundColor": "rgba(0,0,0,0.1)",
-				"borderWidth": 3,
-				"borderColor": "rgba(0,0,0,0.1)",
-				"borderCapStyle": "butt",
-				"borderDash": [],
-				"borderDashOffset": 0,
-				"borderJoinStyle": "miter",
-				"capBezierPoints": true,
-				"fill": true
-			},
-			"point": {
-				"radius": 3,
-				"pointStyle": "circle",
-				"backgroundColor": "rgba(0,0,0,0.1)",
-				"borderColor": "rgba(0,0,0,0.1)",
-				"borderWidth": 1,
-				"hitRadius": 1,
-				"hoverRadius": 4,
-				"hoverBorderWidth": 1
-			},
-			"rectangle": {
-				"backgroundColor": "rgba(0,0,0,0.1)",
-				"borderColor": "rgba(0,0,0,0.1)",
-				"borderSkipped": "bottom",
-				"borderWidth": 0
-			}
-		},
-		"datasets": {
-			"bar": {
-				"categoryPercentage": 0.8,
-				"barPercentage": 0.9
-			},
-			"horizontalBar": {
-				"categoryPercentage": 0.8,
-				"barPercentage": 0.9
-			},
-			"scatter": {
-				"showLine": false
-			}
-		},
-		"layout": {
-			"padding": {
-				"top": 0,
-				"right": 0,
-				"bottom": 0,
-				"left": 0
-			}
-		},
-		"plugins": {
-			"filler": {
-				"propagate": true
-			}
-		},
-		"tooltips": {
-			"enabled": true,
-			"custom": null,
-			"mode": "nearest",
-			"position": "average",
-			"intersect": true,
-			"backgroundColor": "rgba(0,0,0,0.8)",
-			"titleFontStyle": "bold",
-			"titleSpacing": 2,
-			"titleMarginBottom": 6,
-			"titleFontColor": "#fff",
-			"titleAlign": "left",
-			"bodySpacing": 2,
-			"bodyFontColor": "#fff",
-			"bodyAlign": "left",
-			"footerFontStyle": "bold",
-			"footerSpacing": 2,
-			"footerMarginTop": 6,
-			"footerFontColor": "#fff",
-			"footerAlign": "left",
-			"yPadding": 6,
-			"xPadding": 6,
-			"caretPadding": 2,
-			"caretSize": 5,
-			"cornerRadius": 6,
-			"multiKeyBackground": "#fff",
-			"displayColors": true,
-			"borderColor": "rgba(0,0,0,0)",
-			"borderWidth": 0,
-			"callbacks": {}
-		},
-		"events": [
-			"mousemove",
-			"mouseout",
-			"click",
-			"touchstart",
-			"touchmove"
-		],
-		"hover": {
-			"onHover": null,
-			"mode": "nearest",
-			"intersect": true,
-			"animationDuration": 400
-		},
-		"onClick": null,
-		"maintainAspectRatio": false,
-		"responsive": true,
-		"responsiveAnimationDuration": 0,
-		"legend": {
-			"display": true,
-			"position": "top",
-			"align": "end",
-			"fullWidth": true,
-			"reverse": false,
-			"weight": 1000,
-			"onHover": null,
-			"onLeave": null,
-			"labels": {
-				"boxWidth": 10,
-				"padding": 10,
-				"fontColor": "#333",
-				"fontSize": 11
-			}
-		},
-		"title": {
-			"display": false,
-			"fontStyle": "bold",
-			"fontColor": "#333",
-			"fontSize": 14,
-			"fullWidth": true,
-			"padding": 5,
-			"position": "top",
-			"text": "",
-			"weight": 2000
-		}
-	},
-	"bar": {
-		"hover": {
-			"mode": "label"
-		},
-		"scales": {
-			"xAxes": [
-				{
-					"type": "category",
-					"offset": true,
-					"gridLines": {
-						"offsetGridLines": true,
-						"drawOnChartArea": false
-					}
-				}
-			],
-			"yAxes": [
-				{
-					"type": "linear"
-				}
-			]
-		}
-	},
-	"bubble": {
-		"hover": {
-			"mode": "single"
-		},
-		"scales": {
-			"xAxes": [
-				{
-					"type": "linear",
-					"position": "bottom",
-					"id": "x-axis-0"
-				}
-			],
-			"yAxes": [
-				{
-					"type": "linear",
-					"position": "left",
-					"id": "y-axis-0"
-				}
-			]
-		},
-		"tooltips": {
-			"callbacks": {}
-		}
-	},
-	"doughnut": {
-		"animation": {
-			"animateRotate": true,
-			"animateScale": false
-		},
-		"hover": {
-			"mode": "single"
-		},
-		"legend": {
-			"labels": {}
-		},
-		"cutoutPercentage": 50,
-		"rotation": -1.5707963267948966,
-		"circumference": 6.283185307179586,
-		"tooltips": {
-			"callbacks": {}
-		}
-	},
-	"horizontalBar": {
-		"hover": {
-			"mode": "index",
-			"axis": "y"
-		},
-		"scales": {
-			"xAxes": [
-				{
-					"type": "linear",
-					"position": "bottom"
-				}
-			],
-			"yAxes": [
-				{
-					"type": "category",
-					"position": "left",
-					"offset": true,
-					"gridLines": {
-						"offsetGridLines": true,
-						"drawOnChartArea": false
-					}
-				}
-			]
-		},
-		"elements": {
-			"rectangle": {
-				"borderSkipped": "left"
-			}
-		},
-		"tooltips": {
-			"mode": "index",
-			"axis": "y"
-		}
-	},
-	"line": {
-		"showLines": true,
-		"spanGaps": false,
-		"hover": {
-			"mode": "label"
-		},
-		"scales": {
-			"xAxes": [
-				{
-					"type": "category",
-					"id": "x-axis-0",
-					"gridLines": {
-						"drawOnChartArea": false
-					}
-				}
-			],
-			"yAxes": [
-				{
-					"type": "linear",
-					"id": "y-axis-0"
-				}
-			]
-		}
-	},
-	"polarArea": {
-		"scale": {
-			"type": "radialLinear",
-			"angleLines": {
-				"display": false
-			},
-			"gridLines": {
-				"circular": true
-			},
-			"pointLabels": {
-				"display": false
-			},
-			"ticks": {
-				"beginAtZero": true
-			}
-		},
-		"animation": {
-			"animateRotate": true,
-			"animateScale": true
-		},
-		"startAngle": -1.5707963267948966,
-		"legend": {
-			"labels": {}
-		},
-		"tooltips": {
-			"callbacks": {}
-		}
-	},
-	"pie": {
-		"animation": {
-			"animateRotate": true,
-			"animateScale": false
-		},
-		"hover": {
-			"mode": "single"
-		},
-		"legend": {
-			"labels": {}
-		},
-		"cutoutPercentage": 0,
-		"rotation": -1.5707963267948966,
-		"circumference": 6.283185307179586,
-		"tooltips": {
-			"callbacks": {}
-		}
-	},
-	"radar": {
-		"spanGaps": false,
-		"scale": {
-			"type": "radialLinear"
-		},
-		"elements": {
-			"line": {
-				"fill": "start",
-				"tension": 0
-			}
-		}
-	},
-	"scatter": {
-		"hover": {
-			"mode": "single"
-		},
-		"scales": {
-			"xAxes": [
-				{
-					"id": "x-axis-1",
-					"type": "linear",
-					"position": "bottom"
-				}
-			],
-			"yAxes": [
-				{
-					"id": "y-axis-1",
-					"type": "linear",
-					"position": "left"
-				}
-			]
-		},
-		"tooltips": {
-			"callbacks": {}
-		}
-	},
-	"scale": {
-		"display": true,
-		"position": "left",
-		"offset": false,
-		"gridLines": {
-			"display": true,
-			"color": "rgba(0,0,0,0.1)",
-			"lineWidth": 1,
-			"drawBorder": true,
-			"drawOnChartArea": true,
-			"drawTicks": true,
-			"tickMarkLength": 5,
-			"zeroLineWidth": 1,
-			"zeroLineColor": "rgba(0,0,0,0.25)",
-			"zeroLineBorderDash": [],
-			"zeroLineBorderDashOffset": 0,
-			"offsetGridLines": false,
-			"borderDash": [],
-			"borderDashOffset": 0
-		},
-		"scaleLabel": {
-			"fontColor": "#333",
-			"fontSize": 11,
-			"fontStyle": "bold",
-			"display": true,
-			"labelString": "",
-			"padding": {
-				"top": 4,
-				"bottom": 4
-			}
-		},
-		"ticks": {
-			"fontColor": "#333",
-			"fontSize": 11,
-			"beginAtZero": false,
-			"minRotation": 0,
-			"maxRotation": 50,
-			"mirror": false,
-			"padding": 4,
-			"reverse": false,
-			"display": true,
-			"autoSkip": true,
-			"autoSkipPadding": 0,
-			"labelOffset": 0,
-			"minor": {},
-			"major": {}
-		}
-	}
-};
-
-var label_config = {
-	"global": {
-		"align": "center",
-		"anchor": "center",
-		// "backgroundColor": null,
-		// "borderColor": null,
-		"borderRadius": 0,
-		"borderWidth": 0,
-		"clamp": false,
-		"clip": false,
-		"display": false,
-		"color": "#333",
-		"font": {
-			"size": 11,
-			"lineHeight": 1.2,
-			"weight": null
-		},
-		"listeners": {},
-		"offset": 4,
-		"opacity": 1,
-		"padding": {
-			"top": 4,
-			"right": 4,
-			"bottom": 4,
-			"left": 4
-		},
-		"rotation": 0,
-		"textAlign": "center",
-		"textStrokeWidth": 0,
-		"textShadowBlur": 0
-	},
-
-	"bar": {
-		"anchor": "end",
-		"align": "bottom"
-	},
-	"horizontalBar": {
-		"anchor": "end",
-		"align": "start"
-	},
-	"line": {
-		"clip": false,
-		"anchor": "center",
-		"align": "center",
-		"borderRadius": 4,
-		"padding": {
-			"top": 4,
-			"right": 12,
-			"bottom": 4,
-			"left": 12
-		},
-	},
-	"doughnut": {
-		"anchor": "center",
-		"align": "center"
-	},
-	"pie": {
-		"anchor": "center",
-		"align": "center"
-	}
-};
-
-var chartjs_sizing = {
-	"small": {
-		"title": {
-			"fontSize": 12,
-			"padding": 6
-		},
-		"legend": {
-			"boxWidth": 8,
-			"padding": 8,
-			"fontSize": 9
-		},
-		"scale": {
-			"scaleLabel": {
-				"fontSize": 9,
-				"padding": { "top": 2, "bottom": 2 }
-			},
-			"ticks": {
-				"fontSize": 9,
-				"padding": 4
-			}
-		},
-		"labels": {
-			"font": {"size": 9, "lineHeight": 1.5},
-			"padding": {"top": 2, "right": 6, "bottom": 2, "left": 6}
-		}
-	},
-	"medium": {
-		"title": {
-			"fontSize": 14,
-			"padding": 10
-		},
-		"legend": {
-			"boxWidth": 10,
-			"padding": 10,
-			"fontSize": 11
-		},
-		"scale": {
-			"scaleLabel": {
-				"fontSize": 11,
-				"padding": {"top": 4, "bottom": 4}
-			},
-			"ticks": {
-				"fontSize": 11,
-				"padding": 6
-			}
-		},
-		"labels": {
-			"font": {"size": 11},
-			"padding": {"top": 4, "right": 12, "bottom": 4, "left": 12}
-		}
-	},
-	"large": {
-		"title": {
-			"fontSize": 16,
-			"padding": 12
-		},
-		"legend": {
-			"boxWidth": 12,
-			"padding": 12,
-			"fontSize": 14
-		},
-		"scale": {
-			"scaleLabel": {
-				"fontSize": 14,
-				"padding": {"top": 6, "bottom": 6}
-			},
-			"ticks": {
-				"fontSize": 14,
-				"padding": 8
-			}
-		},
-		"labels": {
-			"font": {"size": 13},
-			"padding": {"top": 6, "right": 14, "bottom": 6, "left": 6}
-		}
-	}
-};
-
-
-// EXTERNAL MODULE: ./node_modules/lodash/lodash.js
-var lodash = __webpack_require__("2ef0");
-var lodash_default = /*#__PURE__*/__webpack_require__.n(lodash);
-
-// EXTERNAL MODULE: ./node_modules/chartjs-plugin-datalabels/dist/chartjs-plugin-datalabels.js
-var chartjs_plugin_datalabels = __webpack_require__("a9be");
-
-// CONCATENATED MODULE: ./src/chart-base.js
-
-
-
-
-
-const color_palettes = {
-	'grayscale': ['#768192', '#adb3be', '#cad2de', '#dfe4eb', '#f0f3fa'],
-	'pastele-1': ['#fbb4ae','#b3cde3','#ccebc5','#decbe4','#fed9a6','#ffffcc'],
-	'pastele-2': ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f'],
-	'mid-contrasting': ['#4e79a7','#f28e2c','#e15759','#76b7b2','#59a14f','#edc949','#af7aa1','#ff9da7','#9c755f','#bab0ab'],
-	'high-contrasting-1': ['#4dc9f6', '#f67019', '#f53794', '#537bc4', '#acc236', '#166a8f', '#00a950', '#58595b', '#8549ba', '#768192'],
-	'high-contrasting-2': ['#f3c300', '#875692', '#f38400', '#a1caf1', '#be0032', '#c2b280', '#848482', '#008856', '#e68fac', '#0067a5', '#f99379', '#604e97', '#f6a600', '#b3446c', '#dcd300', '#882d17', '#8db600', '#654522', '#e25822', '#2b3d26', '#f2f3f4', '#222222']
-};
-
-const dflt_cpalette = 'high-contrasting-1';
-
-const label_colors = {
-	'grayscale': '#fff',
-	'pastele-1': '#6D7E8F',
-	'pastele-2': '#6D7E8F',
-	'mid-contrasting': '#fff',
-	'high-contrasting-1': '#fff',
-	'high-contrasting-2': '#fff'
-};
-
-var chart_colors = function(palette) {
-	let colors = palette;
-	if (typeof palette == 'string') colors = color_palettes[palette];
-	return colors || color_palettes[dflt_cpalette];
-};
-
-var color_at = function (idx, palette) {
-	const colors = chart_colors(palette);
-	return colors[idx % colors.length];
-};
-
-var category_axis_column = function(format, resultset) {
-	const category_axis_column = format.category_axis_column;
-	if (category_axis_column == undefined) return null;
-
-	const {cols} = resultset;
-	let idx = category_axis_column;
-	if (typeof category_axis_column == 'string') idx = cols.findIndex(c => c.name == category_axis_column);
-	return idx;
-};
-
-
-const stchart_formats = {
-	locale: 'en', //string that is a Unicode BCP 47 locale identifier (https://www.unicode.org/reports/tr35/tr35.html#BCP_47_Conformance)
-	number_symbols: [
-		{v: 1e-9, s: 'n'},
-		{v: 1e-6, s: 'μ'},
-		{v: 1e-3, s: 'm'},
-		{v: 0},
-		{v: 1e3 , s: 'k'},
-		{v: 1e6 , s: 'M'},
-		{v: 1e9 , s: 'G'},
-		{v: 1e12, s: 'T'},
-		{v: 1e15, s: 'P'},
-		{v: 1e18, s: 'E'},
-		{v: 1e21, s: 'Z'},
-		{v: 1e24, s: 'Y'}
-	],
-
-	size: 'medium', // small, medium*, large
-
-	color_palette: 'default',
-
-	title: {
-		label: '',
-		// show: automatically calculated as !!label.trim()
-		placement: 'top' // top* (as top center), left (as left vertical), bottom (as bottom center), right (as right vertical)
-	},
-
-	legend: {
-		show: true,
-		placement: 'top-end' // 'position-align'
-		// position: top*, left, bottom, right
-		// align: center*, start, end
-		// * - default
-	},
-
-	labels: {
-		show: false, // true, false*
-		label: 'value', // value*, label, percentage (only if percentage_values: true and for), value-percentage
-		placement: null,// anchor-align: center*, start, end & center, start, end, right, bottom, left, top
-		// WISHLIST: font color: auto, custom
-		// WISHLIST: allow labels to overlap: y/n
-	},
-
-
-	stacked: false,	// bar, line
-	percentage_values: false, // bar, auto for pie
-
-	axis: {
-		type: null, // Chartjs default, 'linear', 'category', 'logarithmic'
-		label: '',
-		tick_orientation: null,  //auto, degrees 0 - 90, Only applicable to horizontal scales.
-		range: null, // auto, auto-0, []
-		step: undefined // undefined, Number, Only applicable to linear axes
-	},
-
-	// doughnut, gauge
-	hole_size: 0.5, // ranges between 0-1
-	//gauge
-	angle: 180 // arc angle, value in decimal degrees
-};
-
-function get_sizing_format(format) {
-	return chartjs_sizing[format.size || stchart_formats.size];
-};
-
-function chartjs_axis_format(axis, axis_format, stacked, perc_vals, locale, number_symbols) {
-	let af = lodash_default.a.merge({}, stchart_formats.axis, axis_format);
-
-	if (af.type) axis.type = af.type;
-	if (stacked) axis.stacked = stacked;
-	if (af.label) axis.scaleLabel.labelString = af.label;
-	if (af.tick_orientation != undefined) {
-		axis.ticks.minRotation = af.tick_orientation;
-		axis.ticks.maxRotation = af.tick_orientation;
-	}
-
-	const range = af.range;
-	if (range instanceof Array) {
-		axis.ticks.min = range[0];
-		axis.ticks.max = range[1];
-	}
-	if (range == 'auto-0')
-		axis.ticks.beginAtZero = true;
-
-	if (af.step != undefined)
-		axis.ticks.stepSize = af.step;
-
-	let tf = perc_vals ? chartjs_tick_formatters.percentage : chartjs_tick_formatters[axis.type] || chartjs_tick_formatters.category;
-	axis.ticks.callback = function(value, index, ticks) {
-		return tf.call(this, value, index, ticks, locale, number_symbols);
-	};
-	return axis;
-};
-
-var chartjs_scales_config = function(ctype, format) {
-	const sizing = get_sizing_format(format).scale;
-	let xaxis = lodash_default.a.merge({}, chartjs_config.scale, chartjs_config[ctype].scales.xAxes[0], sizing);
-	let yaxis = lodash_default.a.merge({}, chartjs_config.scale, chartjs_config[ctype].scales.yAxes[0], sizing);
-
-	const {locale, number_symbols} = format;
-	if (ctype == 'line') return {
-		xAxes: [chartjs_axis_format(xaxis, format.xaxis, false, false, locale, number_symbols)],
-		yAxes: [chartjs_axis_format(yaxis, format.yaxis, format.stacked, false, locale, number_symbols)]
-	};
-
-	if (ctype == 'bar') return {
-		xAxes: [chartjs_axis_format(xaxis, format.xaxis, format.stacked, false, false, locale, number_symbols)],
-		yAxes: [chartjs_axis_format(yaxis, format.yaxis, format.stacked, format.percentage_values, locale, number_symbols)]
-	};
-
-	if (ctype == 'horizontalBar') return {
-		xAxes: [chartjs_axis_format(xaxis, format.xaxis, format.stacked, format.percentage_values, locale, number_symbols)],
-		yAxes: [chartjs_axis_format(yaxis, format.yaxis, format.stacked, false, false, locale, number_symbols)]
-	};
-
-	return null;
-};
-
-var chartjs_title_format = function(format) {
-	let title = lodash_default.a.merge({}, chartjs_config.global.title, get_sizing_format(format).title);
-	let tf = lodash_default.a.merge({}, stchart_formats.title, format.title);
-
-	title.display = !!tf.label.trim();
-	title.text = tf.label;
-	title.position = tf.placement;
-
-	return title;
-};
-
-var chartjs_legend_format = function(format) {
-	let legend = lodash_default.a.merge({}, chartjs_config.global.legend, {labels: get_sizing_format(format).legend});
-	let lf = lodash_default.a.merge({}, stchart_formats.legend, format.legend);
-
-	legend.display = lf.show;
-
-	let [pos, align] = lf.placement.toLowerCase().split('-');
-	if (!~['top', 'left', 'bottom', 'right'].indexOf(pos)) pos = 'top';
-	if (!~['center', 'start', 'end'].indexOf(align)) align = 'right';
-	legend.position = pos;
-	legend.align = align;
-
-	return legend;
-};
-
-var chartjs_doughnut_format = function(format) {
-	const {hole_size=0.5} = format;
-	return {
-		cutoutPercentage: hole_size * 100
-	};
-};
-
-var chartjs_gauge_format = function(format) {
-	const {hole_size=0.5, angle=180} = format;
-	return {
-		circumference: angle * Math.PI / 180,
-		rotation: ((angle == 360) ? -90 : (-180 - angle)/2) * Math.PI / 180,
-		cutoutPercentage: hole_size * 100
-	};
-};
-
-var chartjs_label_format = function(ctype, format) {
-	const datalabels = lodash_default.a.merge({}, label_config.global, label_config[ctype], get_sizing_format(format).labels);
-	const lf = lodash_default.a.merge({}, stchart_formats.labels, format.labels);
-
-	if (!lf.display) return {datalabels};
-
-	datalabels.display = true;
-	if (lf.placement) {
-		const [anchor, align] = lf.placement.split('-');
-		datalabels.anchor = anchor;
-		datalabels.align = align;
-	}
-
-	let color = lf.color;
-	if (!color) color = label_colors[format.color_palette] || label_colors[dflt_cpalette];
-	if (color) datalabels.color = color;
-
-	const df = get_display_formatter(ctype, format);
-	const templates = {
-		'label': '<%= label %>',
-		'value': '<%= formatter.value(value) %>',
-		'percentage': '<%= formatter.percentage(perc) %>',
-		'value-percentage': '<%= formatter.value(value) %> (<%= formatter.percentage(perc) %>)'
-	};
-	const template = lodash_default.a.template(templates[lf.label], {imports: {formatter: df} });
-	datalabels.formatter = function(v, context) {
-		const ds = context.dataset;
-		const values = {
-			label: ds.label,
-			value: v,
-			perc: v/lodash_default.a.sum(ds.data)
-		}
-		let rv = template(values);
-		return rv;
-	};
-
-	if (ctype == 'line') {
-		datalabels.formatter = function(v, context) {
-			const ds = context.dataset;
-			const values = {
-				label: ds.label,
-				value: v.y,
-				perc: v.y
-			}
-			let rv = template(values);
-			return rv;
-		};
-
-		datalabels.backgroundColor = function(context) {
-			return context.dataset.borderColor;
-		};
-	}
-	return {datalabels};
-};
-
-var format_number = function(value, locale, number_symbols) {
-	if (value == 0) return {
- 		v: 0,
- 		nv: 0,
- 		s: '',
- 		str: '0'
- 	};
-
- 	let nv = value;
- 	let symbol = '';
-
- 	const symbols = number_symbols || stchart_formats.number_symbols;
- 	for (let i = 0; i < symbols.length; ++i) {
- 		const ns = symbols[i];
- 		if (value < ns.v) break;
-
- 		nv = value / (ns.v || 1);
- 		symbol = ns.s;
- 	}
-
- 	nv = new Intl.NumberFormat(locale || stchart_formats.locale, {maximumSignificantDigits: 0, maximumSignificantDigits: 2}).format(nv);
- 	return {
- 		v: value,
- 		nv: nv,
- 		s: symbol,
- 		str: symbol ? `${nv} ${symbol}` : nv
- 	};
-};
-
-var chartjs_tick_formatters = {
-	category: function(value, index, ticks, locale) { return value; },
-	linear: function(value, index, ticks, locale, number_symbols) {
-		return format_number(value, locale, number_symbols).str;
-	},
-	logarithmic: function(value, index, ticks, locale, number_symbols) {
-		if (value == 0) return '0';
-		const fv = format_number(value, locale, number_symbols);
-		const r = Math.floor( value / (Math.pow(10, Math.floor(Math.log10(value)))) );
-		if (r == 0 || r == 1 || r == 2 || r == 5 || index == ticks.length - 1) return fv.str;
-		return '';
-
-	},
-	percentage: function(value, index, ticks, locale, number_symbols) {
-		return `${format_number(value * 100, locale, number_symbols).str} %`;
-	}
-};
-
-var chartjs_display_formatters = {
-	text: function(value) { return value; },
-	number: function(value) { return format_number(value).str; },
-	percentage: function(value) { return `${format_number(value * 100).str} %`; }
-};
-
-function get_display_formatter(ctype, format) {
-	const df = chartjs_display_formatters;
-
-	if (ctype == 'pie') {
-		return {
-			title: lodash_default.a.bind(df.text, null, lodash_default.a, format.locale, format.number_symbols),
-			value: lodash_default.a.bind(df.number, null, lodash_default.a, format.locale, format.number_symbols),
-			percentage: lodash_default.a.bind(df.percentage, null, lodash_default.a, format.locale, format.number_symbols)
-		};
-	}
-	if (ctype == 'line') {
-		const t =  lodash_default.a.get(format.xaxis, 'type', chartjs_config.line.scales.xAxes[0].type);
-		return {
-			title: lodash_default.a.bind(t == 'category' ? df.text : df.number, null, lodash_default.a, format.locale, format.number_symbols),
-			value: lodash_default.a.bind(df.number, null, lodash_default.a, format.locale, format.number_symbols)
-		};
-	}
-
-	return {
-		title: lodash_default.a.bind(df.text, null, lodash_default.a, format.locale, format.number_symbols),
-		value: lodash_default.a.bind(format.percentage_values ? df.percentage : df.number, null, lodash_default.a, format.locale, format.number_symbols),
-		percentage: lodash_default.a.bind(df.percentage, null, lodash_default.a, format.locale, format.number_symbols)
-	};
-};
-
-var chartjs_tooltp_format = function(ctype, format) {
-	const df = get_display_formatter(ctype, format);
-
-	if (ctype == 'pie') {
-		return {
-			// https://github.com/chartjs/Chart.js/blob/df942bb579be72619beb42e13720e9f325161ce4/src/controllers/controller.doughnut.js#L98
-			callbacks: {
-				title: function() { return ''; },
-				label: function(item, data) {
-					let labels = data.labels[item.index];
-					const label = (lodash_default.a.isArray(labels)) ? labels.slice() : labels;
-					const value = data.datasets[item.datasetIndex].data[item.index];
-					return `${label}: ${df.value(value)}`;
-				}
-			}
-		};
-	}
-
-	return {
-		// https://github.com/chartjs/Chart.js/blob/df942bb579be72619beb42e13720e9f325161ce4/src/core/core.tooltip.js#L40
-		callbacks: {
-			title: function(items, data) {
-				if (!items.length) return '';
-
-				const item = items[0];
-				const label = ctype == 'horizontalBar' ? item.yLabel : item.xLabel;
-				if (label != undefined) return df.title(label);
-
-				const labels = data.labels;
-				const lcnt = labels ? labels.length : 0;
-				if (lcnt > 0 && item.index < lcnt) return df.title(labels[item.index]);
-				return '';
-
-			},
-			label: function(item, data) {
-				let label = data.datasets[item.datasetIndex].label || '';
-				const value = ctype == 'horizontalBar' ? item.xLabel : item.yLabel;
-				return item.yLabel ? `${label}: ${df.value(value)}` : label;
-			}
-		}
-	};
-};
-
-var chartjs_mixin = {
-	props: {
-		format: {type: Object}
-	},
-	watch: {
-		format: function() {
-			this.rerender();
-		}
-	},
-	async mounted() {
-		this.render();
-		this.$emit('update:status', 'Loading');
-
-		this.rerender();
-	},
-	methods: {
-		async rerender() {
-			const pr = new Promise((resolve) => resolve(this.format.data));
-			try {
-				const result = await pr;
-				this.$emit('update:status', '');
-				this.render(result);
-			}
-			catch(err) {}
-			finally {
-				this.$emit('update:status', '');
-			}
-		}
-	}
-};
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/components/bar-chart.vue?vue&type=script&lang=js&
-
-
-
-
-
-
-function create_bar_options(format) {
-	const title = chartjs_title_format(format);
-	const legend = chartjs_legend_format(format);
-	const scales = chartjs_scales_config('bar', format);
-	const datalabels = chartjs_label_format('bar', format);
-	const tooltips = chartjs_tooltp_format('bar', format);
-	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.bar, {title}, {legend}, {scales}, {plugins: datalabels}, {tooltips});
-	return opts;
-};
-
-function create_hbar_options(format) {
-	const title = chartjs_title_format(format);
-	const legend = chartjs_legend_format(format);
-	const scales = chartjs_scales_config('horizontalBar', format);
-	const datalabels = chartjs_label_format('horizontalBar', format);
-	const tooltips = chartjs_tooltp_format('horizontalBar', format);
-	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.horizontalBar, {title}, {legend}, {scales}, {plugins: datalabels}, {tooltips});
-	return opts;
-};
-
-function create_bar_dataset(response = {cols: [], data: []}, format) {
-	const {cols:rvcols, data:rvdata} = response;
-	const cat_col_idx = category_axis_column(format, response);
-	if (cat_col_idx == undefined) return {labels: [], datasets: []};
-
-	let datasets = rvcols.reduce((rv, col, i) => {
-		if (i == cat_col_idx) return rv;
-		rv.push({
-			label: col.name,
-			backgroundColor: color_at(rv.length, format.color_palette),
-			data: rvdata.map(x => x[i])
-		});
-		return rv;
-	}, []);
-
-	if (format.percentage_values) {
-		datasets.forEach(ds => {
-			let {data} = ds;
-			const sum = lodash_default.a.sum(data);
-			ds.data = data.map(y => y/sum);
-		});
-	}
-
-	const ds = {
-		labels: rvdata.map(x => x[cat_col_idx]),
-		datasets: datasets
-	};
-	return ds;
-};
-
-var BarChart = {
-	mixins: [chartjs_mixin, Bar],
-	props: {
-		format: {type: Object}
-	},
-	data: () => ({}),
-	methods: {
-		render(response) {
-			const ds = create_bar_dataset(response, this.format);
-			const opts = create_bar_options(this.format);
-			this.renderChart(ds, opts);
-		}
-	}
-};
-
-var HorizontalBarChart = {
-	mixins: [chartjs_mixin, HorizontalBar],
-	props: {
-		format: {type: Object}
-	},
-	data: () => ({}),
-	methods: {
-		render(response) {
-			const ds = create_bar_dataset(response, this.format);
-			const opts = create_hbar_options(this.format);
-			this.renderChart(ds, opts);
-		}
-	}
-};
-
-/* harmony default export */ var bar_chartvue_type_script_lang_js_ = ({BarChart, HorizontalBarChart});
-
-// CONCATENATED MODULE: ./src/components/bar-chart.vue?vue&type=script&lang=js&
- /* harmony default export */ var components_bar_chartvue_type_script_lang_js_ = (bar_chartvue_type_script_lang_js_); 
-// CONCATENATED MODULE: ./src/components/bar-chart.vue
-var bar_chart_render, bar_chart_staticRenderFns
-
-
-
-
-/* normalize component */
-
-var bar_chart_component = normalizeComponent(
-  components_bar_chartvue_type_script_lang_js_,
-  bar_chart_render,
-  bar_chart_staticRenderFns,
-  false,
-  null,
-  null,
-  null
-  
-)
-
-/* harmony default export */ var bar_chart = (bar_chart_component.exports);
-// EXTERNAL MODULE: ./node_modules/color/index.js
-var node_modules_color = __webpack_require__("6929");
-var color_default = /*#__PURE__*/__webpack_require__.n(node_modules_color);
-
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/components/line-chart.vue?vue&type=script&lang=js&
-
-
-
-
-
-
-
-function create_line_options(format) {
-	const title = chartjs_title_format(format);
-	const legend = chartjs_legend_format(format);
-	const scales = chartjs_scales_config('line', format);
-	const datalabels = chartjs_label_format('line', format);
-	const tooltips = chartjs_tooltp_format('line', format);
-	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.line, {title}, {legend}, {scales}, {plugins: datalabels}, {tooltips});
-	return opts;
-};
-
-function create_line_dataset(response = {cols: [], data: []}, format) {
-	const {cols:rvcols, data:rvdata} = response;
-	const cat_col_idx = category_axis_column(format, response);
-	if (cat_col_idx == undefined) return {labels: [], datasets: []};
-
-	const datasets = rvcols.reduce((rv, col, i) => {
-		if (i == cat_col_idx) return rv;
-		rv.push({
-			label: col.name,
-			borderColor: color_at(rv.length, format.color_palette),
-			borderWidth: 2,
-			fill: false,
-			data: rvdata.map(x => ({x: x[cat_col_idx], y: x[i]}))  //linear type
-		});
-		return rv;
-	}, []);
-
-	const ds = {
-		labels: rvdata.map(x => x[cat_col_idx]),
-		datasets: datasets
-	};
-	return ds;
-};
-
-function create_area_dataset(response = {cols: [], data: []}, format) {
-	const {cols:rvcols, data:rvdata} = response;
-	const cat_col_idx = category_axis_column(format, response);
-	if (cat_col_idx == undefined) return {labels: [], datasets: []};
-
-	const datasets = rvcols.reduce((rv, col, i) => {
-		if (i == cat_col_idx) return rv;
-		const bc = color_at(rv.length, format.color_palette);
-		const fc = color_default()(bc).fade(0.25).string();
-		rv.push({
-			label: col.name,
-			borderColor: bc,
-			backgroundColor: fc,
-			borderWidth: 2,
-			fill: true,
-			data: rvdata.map(x => ({x: x[cat_col_idx], y: x[i]}))  //linear type
-		});
-		return rv;
-	}, []);
-
-	const ds = {
-		labels: rvdata.map(x => x[cat_col_idx]),
-		datasets: datasets
-	};
-	return ds;
-};
-
-var LineChart = {
-	mixins: [chartjs_mixin, Line],
-	props: {
-		format: {type: Object}
-	},
-	data: () => ({}),
-	methods: {
-		render(response) {
-			const ds = create_line_dataset(response, this.format);
-			const opts = create_line_options(this.format);
-			this.renderChart(ds, opts);
-		}
-	}
-};
-
-var AreaChart = {
-	mixins: [LineChart],
-	methods: {
-		render(response) {
-			const ds = create_area_dataset(response, this.format);
-			const opts = create_line_options(this.format);
-			this.renderChart(ds, opts);
-		}
-	}
-};
-/* harmony default export */ var line_chartvue_type_script_lang_js_ = ({LineChart, AreaChart});
-
-// CONCATENATED MODULE: ./src/components/line-chart.vue?vue&type=script&lang=js&
- /* harmony default export */ var components_line_chartvue_type_script_lang_js_ = (line_chartvue_type_script_lang_js_); 
-// CONCATENATED MODULE: ./src/components/line-chart.vue
-var line_chart_render, line_chart_staticRenderFns
-
-
-
-
-/* normalize component */
-
-var line_chart_component = normalizeComponent(
-  components_line_chartvue_type_script_lang_js_,
-  line_chart_render,
-  line_chart_staticRenderFns,
-  false,
-  null,
-  null,
-  null
-  
-)
-
-/* harmony default export */ var line_chart = (line_chart_component.exports);
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/components/pie-chart.vue?vue&type=script&lang=js&
-
-
-
-
-
-
-function create_pie_options(format) {
-	const title = chartjs_title_format(format);
-	const legend = chartjs_legend_format(format);
-	const datalabels = chartjs_label_format('pie', format);
-	const tooltips = chartjs_tooltp_format('pie', format);
-	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.pie, {title}, {legend}, {plugins: datalabels}, {tooltips});
-	return opts;
-};
-
-function create_doughnut_options(format) {
-	const title = chartjs_title_format(format);
-	const legend = chartjs_legend_format(format);
-	const doughnut = chartjs_doughnut_format(format);
-	const datalabels = chartjs_label_format('pie', format);
-	const tooltips = chartjs_tooltp_format('pie', format);
-	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.doughnut, {title}, {legend}, doughnut, {plugins: datalabels}, {tooltips});
-	return opts;
-};
-
-function create_gauge_options(format) {
-	const title = chartjs_title_format(format);
-	const legend = chartjs_legend_format(format);
-	const gauge = chartjs_gauge_format(format);
-	const datalabels = chartjs_label_format('pie', format);
-	const tooltips = chartjs_tooltp_format('pie', format);
-	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.doughnut, {title}, {legend}, gauge, {plugins: datalabels}, {tooltips});
-	return opts;
-};
-
-function create_pie_dataset(response = {cols: [], data: []}, format) {
-	const {cols:rvcols, data:rvdata} = response;
-	const cat_col_idx = category_axis_column(format, response);
-	if (cat_col_idx == undefined) return {labels: [], datasets: []};
-
-	const datasets = rvcols.reduce((rv, col, i) => {
-		if (i == cat_col_idx) return rv;
-		rv.push({
-			label: col.name,
-			data: rvdata.map(x => x[i]),
-			backgroundColor: chart_colors(format.color_palette)
-		});
-		return rv;
-	}, []);
-
-	const ds = {
-		labels: rvdata.map(x => x[cat_col_idx]),
-		datasets: datasets
-	};
-	return ds;
-};
-
-var PieChart = {
-	mixins: [chartjs_mixin, Pie],
-	props: {
-		format: {type: Object}
-	},
-	data: () => ({}),
-	methods: {
-		render(response) {
-			const ds = create_pie_dataset(response, this.format);
-			const opts = create_pie_options(this.format);
-			this.renderChart(ds, opts);
-		}
-	}
-};
-
-var DoughnutChart = {
-	mixins: [PieChart],
-	methods: {
-		render(response) {
-			const ds = create_pie_dataset(response, this.format);
-			const opts = create_doughnut_options(this.format);
-			this.renderChart(ds, opts);
-		}
-	}
-};
-
-var GaugeChart = {
-	mixins: [PieChart],
-	methods: {
-		render(response) {
-			const ds = create_pie_dataset(response, this.format);
-			const opts = create_gauge_options(this.format);
-			this.renderChart(ds, opts);
-		}
-	}
-};
-/* harmony default export */ var pie_chartvue_type_script_lang_js_ = ({PieChart, DoughnutChart, GaugeChart});
-
-// CONCATENATED MODULE: ./src/components/pie-chart.vue?vue&type=script&lang=js&
- /* harmony default export */ var components_pie_chartvue_type_script_lang_js_ = (pie_chartvue_type_script_lang_js_); 
-// CONCATENATED MODULE: ./src/components/pie-chart.vue
-var pie_chart_render, pie_chart_staticRenderFns
-
-
-
-
-/* normalize component */
-
-var pie_chart_component = normalizeComponent(
-  components_pie_chartvue_type_script_lang_js_,
-  pie_chart_render,
-  pie_chart_staticRenderFns,
-  false,
-  null,
-  null,
-  null
-  
-)
-
-/* harmony default export */ var pie_chart = (pie_chart_component.exports);
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/cache-loader/dist/cjs.js??ref--0-0!C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/node_modules/vue-loader/lib??vue-loader-options!./src/compact-chart.vue?vue&type=script&lang=js&
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-
-
-
-  const {BarChart: compact_chartvue_type_script_lang_js_BarChart, HorizontalBarChart: compact_chartvue_type_script_lang_js_HorizontalBarChart} = bar_chart;
- const {LineChart: compact_chartvue_type_script_lang_js_LineChart, AreaChart: compact_chartvue_type_script_lang_js_AreaChart} = line_chart;
-  const {PieChart: compact_chartvue_type_script_lang_js_PieChart, DoughnutChart: compact_chartvue_type_script_lang_js_DoughnutChart, GaugeChart: compact_chartvue_type_script_lang_js_GaugeChart} = pie_chart;
-
-const chart_types = {
-	'bar-chart': compact_chartvue_type_script_lang_js_BarChart,
-	'horizontal-bar-chart': compact_chartvue_type_script_lang_js_HorizontalBarChart,
-	'line-chart': compact_chartvue_type_script_lang_js_LineChart,
-	'area-chart': compact_chartvue_type_script_lang_js_AreaChart,
-	'pie-chart': compact_chartvue_type_script_lang_js_PieChart,
-	'doughnut-chart': compact_chartvue_type_script_lang_js_DoughnutChart,
-	'gauge-chart': compact_chartvue_type_script_lang_js_GaugeChart
-};
-
-/* harmony default export */ var compact_chartvue_type_script_lang_js_ = ({
-	name: 'App',
-	props: ['format'],
-	data: () => ({
-		status: ''
-	}),
-	computed: {
-		chart_opts: function() {
-
-			let format = this.format;
-			if (typeof format == 'string') {
-				try { format = JSON.parse(format); }
-				catch (err) {}
-			}
-
-			const opts = {
-				msql: '',
-				type: '',
-				...format
-			};
-			return opts;
-		},
-		invalid_ctype: function() {
-			return !chart_types[this.chart_opts.type];
-		}
-	},
-
-	components: {SpinnerItem: spinner_item, ...chart_types},
-	mounted() { }
-});
-
-
-// CONCATENATED MODULE: ./src/compact-chart.vue?vue&type=script&lang=js&
- /* harmony default export */ var src_compact_chartvue_type_script_lang_js_ = (compact_chartvue_type_script_lang_js_); 
-// EXTERNAL MODULE: ./src/compact-chart.vue?vue&type=style&index=0&lang=css&
-var compact_chartvue_type_style_index_0_lang_css_ = __webpack_require__("ae61");
-
-// CONCATENATED MODULE: ./src/compact-chart.vue
-
-
-
-
-
-
-/* normalize component */
-
-var compact_chart_component = normalizeComponent(
-  src_compact_chartvue_type_script_lang_js_,
-  render,
-  staticRenderFns,
-  false,
-  null,
-  null,
-  null
-  
-)
-
-/* harmony default export */ var compact_chart = (compact_chart_component.exports);
-// CONCATENATED MODULE: ./src/boot.js
-
-
-
-// For cross-browser compatibility (IE9+) use Custom Elements polyfill.
-// import 'document-register-element/build/document-register-element'
-
-// Custom elements are NOT display: block by default https://github.com/w3c/webcomponents/issues/224
-
-
-vue_runtime_esm["a" /* default */].use(vue_custom_element_esm);
-vue_runtime_esm["a" /* default */].customElement('compact-chart', compact_chart);
-
-// CONCATENATED MODULE: C:/Users/Dijana.MIREO/AppData/Roaming/nvm/v12.16.1/node_modules/@vue/cli-service/lib/commands/build/entry-lib-no-default.js
-
-
-
-
-/***/ }),
-
 /***/ "3d06":
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var _C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_8_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_8_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_8_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_sass_loader_dist_cjs_js_ref_8_oneOf_1_3_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_spinner_item_vue_vue_type_style_index_0_lang_scss___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("c82b");
-/* harmony import */ var _C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_8_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_8_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_8_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_sass_loader_dist_cjs_js_ref_8_oneOf_1_3_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_spinner_item_vue_vue_type_style_index_0_lang_scss___WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_8_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_8_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_8_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_sass_loader_dist_cjs_js_ref_8_oneOf_1_3_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_spinner_item_vue_vue_type_style_index_0_lang_scss___WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _node_modules_mini_css_extract_plugin_dist_loader_js_ref_8_oneOf_1_0_node_modules_css_loader_dist_cjs_js_ref_8_oneOf_1_1_node_modules_vue_loader_lib_loaders_stylePostLoader_js_node_modules_postcss_loader_src_index_js_ref_8_oneOf_1_2_node_modules_sass_loader_dist_cjs_js_ref_8_oneOf_1_3_node_modules_cache_loader_dist_cjs_js_ref_0_0_node_modules_vue_loader_lib_index_js_vue_loader_options_spinner_item_vue_vue_type_style_index_0_lang_scss___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("3e12");
+/* harmony import */ var _node_modules_mini_css_extract_plugin_dist_loader_js_ref_8_oneOf_1_0_node_modules_css_loader_dist_cjs_js_ref_8_oneOf_1_1_node_modules_vue_loader_lib_loaders_stylePostLoader_js_node_modules_postcss_loader_src_index_js_ref_8_oneOf_1_2_node_modules_sass_loader_dist_cjs_js_ref_8_oneOf_1_3_node_modules_cache_loader_dist_cjs_js_ref_0_0_node_modules_vue_loader_lib_index_js_vue_loader_options_spinner_item_vue_vue_type_style_index_0_lang_scss___WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_node_modules_mini_css_extract_plugin_dist_loader_js_ref_8_oneOf_1_0_node_modules_css_loader_dist_cjs_js_ref_8_oneOf_1_1_node_modules_vue_loader_lib_loaders_stylePostLoader_js_node_modules_postcss_loader_src_index_js_ref_8_oneOf_1_2_node_modules_sass_loader_dist_cjs_js_ref_8_oneOf_1_3_node_modules_cache_loader_dist_cjs_js_ref_0_0_node_modules_vue_loader_lib_index_js_vue_loader_options_spinner_item_vue_vue_type_style_index_0_lang_scss___WEBPACK_IMPORTED_MODULE_0__);
 /* unused harmony reexport * */
- /* unused harmony default export */ var _unused_webpack_default_export = (_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_8_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_8_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_8_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_sass_loader_dist_cjs_js_ref_8_oneOf_1_3_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_spinner_item_vue_vue_type_style_index_0_lang_scss___WEBPACK_IMPORTED_MODULE_0___default.a); 
+
+
+/***/ }),
+
+/***/ "3e12":
+/***/ (function(module, exports, __webpack_require__) {
+
+// extracted by mini-css-extract-plugin
 
 /***/ }),
 
@@ -44083,45 +41824,31 @@ module.exports = {
 
 /***/ }),
 
-/***/ "5f7e":
+/***/ "62e4":
 /***/ (function(module, exports) {
 
-// document.currentScript polyfill by Adam Miller
-
-// MIT license
-
-(function(document){
-  var currentScript = "currentScript",
-      scripts = document.getElementsByTagName('script'); // Live NodeList collection
-
-  // If browser needs currentScript polyfill, add get currentScript() to the document object
-  if (!(currentScript in document)) {
-    Object.defineProperty(document, currentScript, {
-      get: function(){
-
-        // IE 6-10 supports script readyState
-        // IE 10+ support stack trace
-        try { throw new Error(); }
-        catch (err) {
-
-          // Find the second match for the "at" string to get file src url from stack.
-          // Specifically works with the format of stack traces in IE.
-          var i, res = ((/.*at [^\(]*\((.*):.+:.+\)$/ig).exec(err.stack) || [false])[1];
-
-          // For all scripts on the page, if src matches or if ready state is interactive, return the script tag
-          for(i in scripts){
-            if(scripts[i].src == res || scripts[i].readyState == "interactive"){
-              return scripts[i];
-            }
-          }
-
-          // If no match, return null
-          return null;
-        }
-      }
-    });
-  }
-})(document);
+module.exports = function(module) {
+	if (!module.webpackPolyfill) {
+		module.deprecate = function() {};
+		module.paths = [];
+		// module.parent = undefined by default
+		if (!module.children) module.children = [];
+		Object.defineProperty(module, "loaded", {
+			enumerable: true,
+			get: function() {
+				return module.l;
+			}
+		});
+		Object.defineProperty(module, "id", {
+			enumerable: true,
+			get: function() {
+				return module.i;
+			}
+		});
+		module.webpackPolyfill = 1;
+	}
+	return module;
+};
 
 
 /***/ }),
@@ -44616,39 +42343,88 @@ module.exports = Color;
 
 /***/ }),
 
-/***/ "6a88":
-/***/ (function(module, exports) {
-
-module.exports = function(module) {
-	if (!module.webpackPolyfill) {
-		module.deprecate = function() {};
-		module.paths = [];
-		// module.parent = undefined by default
-		if (!module.children) module.children = [];
-		Object.defineProperty(module, "loaded", {
-			enumerable: true,
-			get: function() {
-				return module.l;
-			}
-		});
-		Object.defineProperty(module, "id", {
-			enumerable: true,
-			get: function() {
-				return module.i;
-			}
-		});
-		module.webpackPolyfill = 1;
-	}
-	return module;
-};
-
-
-/***/ }),
-
-/***/ "703c":
+/***/ "8875":
 /***/ (function(module, exports, __webpack_require__) {
 
-// extracted by mini-css-extract-plugin
+var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;// addapted from the document.currentScript polyfill by Adam Miller
+// MIT license
+// source: https://github.com/amiller-gh/currentScript-polyfill
+
+// added support for Firefox https://bugzilla.mozilla.org/show_bug.cgi?id=1620505
+
+(function (root, factory) {
+  if (true) {
+    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
+				__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
+				(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
+				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+  } else {}
+}(typeof self !== 'undefined' ? self : this, function () {
+  function getCurrentScript () {
+    var descriptor = Object.getOwnPropertyDescriptor(document, 'currentScript')
+    // for chrome
+    if (!descriptor && 'currentScript' in document && document.currentScript) {
+      return document.currentScript
+    }
+
+    // for other browsers with native support for currentScript
+    if (descriptor && descriptor.get !== getCurrentScript && document.currentScript) {
+      return document.currentScript
+    }
+  
+    // IE 8-10 support script readyState
+    // IE 11+ & Firefox support stack trace
+    try {
+      throw new Error();
+    }
+    catch (err) {
+      // Find the second match for the "at" string to get file src url from stack.
+      var ieStackRegExp = /.*at [^(]*\((.*):(.+):(.+)\)$/ig,
+        ffStackRegExp = /@([^@]*):(\d+):(\d+)\s*$/ig,
+        stackDetails = ieStackRegExp.exec(err.stack) || ffStackRegExp.exec(err.stack),
+        scriptLocation = (stackDetails && stackDetails[1]) || false,
+        line = (stackDetails && stackDetails[2]) || false,
+        currentLocation = document.location.href.replace(document.location.hash, ''),
+        pageSource,
+        inlineScriptSourceRegExp,
+        inlineScriptSource,
+        scripts = document.getElementsByTagName('script'); // Live NodeList collection
+  
+      if (scriptLocation === currentLocation) {
+        pageSource = document.documentElement.outerHTML;
+        inlineScriptSourceRegExp = new RegExp('(?:[^\\n]+?\\n){0,' + (line - 2) + '}[^<]*<script>([\\d\\D]*?)<\\/script>[\\d\\D]*', 'i');
+        inlineScriptSource = pageSource.replace(inlineScriptSourceRegExp, '$1').trim();
+      }
+  
+      for (var i = 0; i < scripts.length; i++) {
+        // If ready state is interactive, return the script tag
+        if (scripts[i].readyState === 'interactive') {
+          return scripts[i];
+        }
+  
+        // If src matches, return the script tag
+        if (scripts[i].src === scriptLocation) {
+          return scripts[i];
+        }
+  
+        // If inline source matches, return the script tag
+        if (
+          scriptLocation === currentLocation &&
+          scripts[i].innerHTML &&
+          scripts[i].innerHTML.trim() === inlineScriptSource
+        ) {
+          return scripts[i];
+        }
+      }
+  
+      // If no match, return null
+      return null;
+    }
+  };
+
+  return getCurrentScript
+}));
+
 
 /***/ }),
 
@@ -46311,10 +44087,10 @@ return plugin;
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
-/* harmony import */ var _C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_6_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_6_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_6_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_compact_chart_vue_vue_type_style_index_0_lang_css___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("703c");
-/* harmony import */ var _C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_6_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_6_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_6_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_compact_chart_vue_vue_type_style_index_0_lang_css___WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_6_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_6_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_6_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_compact_chart_vue_vue_type_style_index_0_lang_css___WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _node_modules_mini_css_extract_plugin_dist_loader_js_ref_6_oneOf_1_0_node_modules_css_loader_dist_cjs_js_ref_6_oneOf_1_1_node_modules_vue_loader_lib_loaders_stylePostLoader_js_node_modules_postcss_loader_src_index_js_ref_6_oneOf_1_2_node_modules_cache_loader_dist_cjs_js_ref_0_0_node_modules_vue_loader_lib_index_js_vue_loader_options_compact_chart_vue_vue_type_style_index_0_lang_css___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__("cb5e");
+/* harmony import */ var _node_modules_mini_css_extract_plugin_dist_loader_js_ref_6_oneOf_1_0_node_modules_css_loader_dist_cjs_js_ref_6_oneOf_1_1_node_modules_vue_loader_lib_loaders_stylePostLoader_js_node_modules_postcss_loader_src_index_js_ref_6_oneOf_1_2_node_modules_cache_loader_dist_cjs_js_ref_0_0_node_modules_vue_loader_lib_index_js_vue_loader_options_compact_chart_vue_vue_type_style_index_0_lang_css___WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_node_modules_mini_css_extract_plugin_dist_loader_js_ref_6_oneOf_1_0_node_modules_css_loader_dist_cjs_js_ref_6_oneOf_1_1_node_modules_vue_loader_lib_loaders_stylePostLoader_js_node_modules_postcss_loader_src_index_js_ref_6_oneOf_1_2_node_modules_cache_loader_dist_cjs_js_ref_0_0_node_modules_vue_loader_lib_index_js_vue_loader_options_compact_chart_vue_vue_type_style_index_0_lang_css___WEBPACK_IMPORTED_MODULE_0__);
 /* unused harmony reexport * */
- /* unused harmony default export */ var _unused_webpack_default_export = (_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_mini_css_extract_plugin_dist_loader_js_ref_6_oneOf_1_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_css_loader_dist_cjs_js_ref_6_oneOf_1_1_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_loaders_stylePostLoader_js_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_postcss_loader_src_index_js_ref_6_oneOf_1_2_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_cache_loader_dist_cjs_js_ref_0_0_C_Users_Dijana_MIREO_AppData_Roaming_nvm_v12_16_1_node_modules_vue_cli_service_node_modules_vue_loader_lib_index_js_vue_loader_options_compact_chart_vue_vue_type_style_index_0_lang_css___WEBPACK_IMPORTED_MODULE_0___default.a); 
+
 
 /***/ }),
 
@@ -47285,14 +45061,7 @@ module.exports = require("moment");
 
 /***/ }),
 
-/***/ "c82b":
-/***/ (function(module, exports, __webpack_require__) {
-
-// extracted by mini-css-extract-plugin
-
-/***/ }),
-
-/***/ "d648":
+/***/ "c8ba":
 /***/ (function(module, exports) {
 
 var g;
@@ -47319,6 +45088,13 @@ module.exports = g;
 
 /***/ }),
 
+/***/ "cb5e":
+/***/ (function(module, exports, __webpack_require__) {
+
+// extracted by mini-css-extract-plugin
+
+/***/ }),
+
 /***/ "f0cb":
 /***/ (function(module, exports) {
 
@@ -47331,6 +45107,2384 @@ module.exports = function isArrayish(obj) {
 		(obj.length >= 0 && (obj.splice instanceof Function ||
 			(Object.getOwnPropertyDescriptor(obj, (obj.length - 1)) && obj.constructor.name !== 'String')));
 };
+
+
+/***/ }),
+
+/***/ "fae3":
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+// ESM COMPAT FLAG
+__webpack_require__.r(__webpack_exports__);
+
+// CONCATENATED MODULE: ./node_modules/@vue/cli-service/lib/commands/build/setPublicPath.js
+// This file is imported into lib/wc client bundles.
+
+if (typeof window !== 'undefined') {
+  var currentScript = window.document.currentScript
+  if (true) {
+    var getCurrentScript = __webpack_require__("8875")
+    currentScript = getCurrentScript()
+
+    // for backward compatibility, because previously we directly included the polyfill
+    if (!('currentScript' in document)) {
+      Object.defineProperty(document, 'currentScript', { get: getCurrentScript })
+    }
+  }
+
+  var src = currentScript && currentScript.src.match(/(.+\/)[^/]+\.js(\?.*)?$/)
+  if (src) {
+    __webpack_require__.p = src[1] // eslint-disable-line
+  }
+}
+
+// Indicate to webpack that this file can be concatenated
+/* harmony default export */ var setPublicPath = (null);
+
+// EXTERNAL MODULE: ./node_modules/vue/dist/vue.runtime.esm.js
+var vue_runtime_esm = __webpack_require__("2b0e");
+
+// CONCATENATED MODULE: ./node_modules/vue-custom-element/dist/vue-custom-element.esm.js
+/**
+  * vue-custom-element v3.3.0
+  * (c) 2021 Karol Fabjańczuk
+  * @license MIT
+  */
+/**
+ * ES6 Object.getPrototypeOf Polyfill
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/setPrototypeOf
+ */
+
+Object.setPrototypeOf = Object.setPrototypeOf || setPrototypeOf;
+
+function setPrototypeOf(obj, proto) {
+  obj.__proto__ = proto;
+  return obj;
+}
+
+var setPrototypeOf_1 = setPrototypeOf.bind(Object);
+
+function isES2015() {
+  if (typeof Symbol === 'undefined' || typeof Reflect === 'undefined' || typeof Proxy === 'undefined' || Object.isSealed(Proxy)) return false;
+
+  return true;
+}
+
+var isES2015$1 = isES2015();
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+function _CustomElement() {
+  return Reflect.construct(HTMLElement, [], this.__proto__.constructor);
+}
+
+
+Object.setPrototypeOf(_CustomElement.prototype, HTMLElement.prototype);
+Object.setPrototypeOf(_CustomElement, HTMLElement);
+function registerCustomElement(tag) {
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+  if (typeof customElements === 'undefined') {
+    return;
+  }
+
+  function constructorCallback() {
+    if (options.shadow === true && HTMLElement.prototype.attachShadow) {
+      this.attachShadow({ mode: 'open' });
+    }
+    typeof options.constructorCallback === 'function' && options.constructorCallback.call(this);
+  }
+  function connectedCallback() {
+    typeof options.connectedCallback === 'function' && options.connectedCallback.call(this);
+  }
+
+  function disconnectedCallback() {
+    typeof options.disconnectedCallback === 'function' && options.disconnectedCallback.call(this);
+  }
+
+  function attributeChangedCallback(name, oldValue, value) {
+    typeof options.attributeChangedCallback === 'function' && options.attributeChangedCallback.call(this, name, oldValue, value);
+  }
+
+  function define(tagName, CustomElement) {
+    var existingCustomElement = customElements.get(tagName);
+    return typeof existingCustomElement !== 'undefined' ? existingCustomElement : customElements.define(tagName, CustomElement);
+  }
+
+  if (isES2015$1) {
+    var CustomElement = function (_CustomElement2) {
+      _inherits(CustomElement, _CustomElement2);
+
+      function CustomElement(self) {
+        var _ret;
+
+        _classCallCheck(this, CustomElement);
+
+        var _this = _possibleConstructorReturn(this, (CustomElement.__proto__ || Object.getPrototypeOf(CustomElement)).call(this));
+
+        var me = self ? HTMLElement.call(self) : _this;
+
+        constructorCallback.call(me);
+        return _ret = me, _possibleConstructorReturn(_this, _ret);
+      }
+
+      _createClass(CustomElement, null, [{
+        key: 'observedAttributes',
+        get: function get() {
+          return options.observedAttributes || [];
+        }
+      }]);
+
+      return CustomElement;
+    }(_CustomElement);
+
+    CustomElement.prototype.connectedCallback = connectedCallback;
+    CustomElement.prototype.disconnectedCallback = disconnectedCallback;
+    CustomElement.prototype.attributeChangedCallback = attributeChangedCallback;
+
+    define(tag, CustomElement);
+    return CustomElement;
+  } else {
+    var _CustomElement3 = function _CustomElement3(self) {
+      var me = self ? HTMLElement.call(self) : this;
+
+      constructorCallback.call(me);
+      return me;
+    };
+
+    _CustomElement3.observedAttributes = options.observedAttributes || [];
+
+    _CustomElement3.prototype = Object.create(HTMLElement.prototype, {
+      constructor: {
+        configurable: true,
+        writable: true,
+        value: _CustomElement3
+      }
+    });
+
+    _CustomElement3.prototype.connectedCallback = connectedCallback;
+    _CustomElement3.prototype.disconnectedCallback = disconnectedCallback;
+    _CustomElement3.prototype.attributeChangedCallback = attributeChangedCallback;
+
+    define(tag, _CustomElement3);
+    return _CustomElement3;
+  }
+}
+
+var camelizeRE = /-(\w)/g;
+var camelize = function camelize(str) {
+  return str.replace(camelizeRE, function (_, c) {
+    return c ? c.toUpperCase() : '';
+  });
+};
+var hyphenateRE = /([^-])([A-Z])/g;
+var hyphenate = function hyphenate(str) {
+  return str.replace(hyphenateRE, '$1-$2').replace(hyphenateRE, '$1-$2').toLowerCase();
+};
+
+function toArray(list) {
+  var start = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+
+  var i = list.length - start;
+  var ret = new Array(i);
+  while (i--) {
+    ret[i] = list[i + start];
+  }
+  return ret;
+}
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+function convertAttributeValue(value, overrideType) {
+  if (value === null || value === undefined) {
+    return overrideType === Boolean ? false : undefined;
+  }
+  var propsValue = value;
+  var isBoolean = ['true', 'false'].indexOf(value) > -1;
+  var valueParsed = parseFloat(propsValue, 10);
+  var isNumber = !isNaN(valueParsed) && isFinite(propsValue) && typeof propsValue === 'string' && !propsValue.match(/^0+[^.]\d*$/g);
+
+  if (overrideType && overrideType !== Boolean && (typeof propsValue === 'undefined' ? 'undefined' : _typeof(propsValue)) !== overrideType) {
+    propsValue = overrideType(value);
+  } else if (isBoolean || overrideType === Boolean) {
+    propsValue = propsValue === '' ? true : propsValue === 'true' || propsValue === true;
+  } else if (isNumber) {
+    propsValue = valueParsed;
+  }
+
+  return propsValue;
+}
+
+function extractProps(collection, props) {
+  if (collection && collection.length) {
+    collection.forEach(function (prop) {
+      var camelCaseProp = camelize(prop);
+      props.camelCase.indexOf(camelCaseProp) === -1 && props.camelCase.push(camelCaseProp);
+    });
+  } else if (collection && (typeof collection === 'undefined' ? 'undefined' : _typeof(collection)) === 'object') {
+    for (var prop in collection) {
+      var camelCaseProp = camelize(prop);
+      props.camelCase.indexOf(camelCaseProp) === -1 && props.camelCase.push(camelCaseProp);
+
+      if (collection[camelCaseProp] && collection[camelCaseProp].type) {
+        props.types[prop] = [].concat(collection[camelCaseProp].type)[0];
+      }
+    }
+  }
+}
+
+function getProps() {
+  var componentDefinition = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
+  var props = {
+    camelCase: [],
+    hyphenate: [],
+    types: {}
+  };
+
+  if (componentDefinition.mixins) {
+    componentDefinition.mixins.forEach(function (mixin) {
+      extractProps(mixin.props, props);
+    });
+  }
+
+  if (componentDefinition.extends && componentDefinition.extends.props) {
+    var parentProps = componentDefinition.extends.props;
+
+
+    extractProps(parentProps, props);
+  }
+
+  extractProps(componentDefinition.props, props);
+
+  props.camelCase.forEach(function (prop) {
+    props.hyphenate.push(hyphenate(prop));
+  });
+
+  return props;
+}
+
+function reactiveProps(element, props) {
+  props.camelCase.forEach(function (name, index) {
+    Object.defineProperty(element, name, {
+      get: function get() {
+        return this.__vue_custom_element__[name];
+      },
+      set: function set(value) {
+        if (((typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object' || typeof value === 'function') && this.__vue_custom_element__) {
+          var propName = props.camelCase[index];
+          this.__vue_custom_element__[propName] = value;
+        } else {
+          var type = props.types[props.camelCase[index]];
+          this.setAttribute(props.hyphenate[index], convertAttributeValue(value, type));
+        }
+      }
+    });
+  });
+}
+
+function getPropsData(element, componentDefinition, props) {
+  var propsData = componentDefinition.propsData || {};
+
+  props.hyphenate.forEach(function (name, index) {
+    var propCamelCase = props.camelCase[index];
+    var propValue = element.attributes[name] || element[propCamelCase];
+
+    var type = null;
+    if (props.types[propCamelCase]) {
+      type = props.types[propCamelCase];
+    }
+
+    if (propValue instanceof Attr) {
+      propsData[propCamelCase] = convertAttributeValue(propValue.value, type);
+    } else if (typeof propValue !== 'undefined') {
+      propsData[propCamelCase] = propValue;
+    }
+  });
+
+  return propsData;
+}
+
+function getAttributes(children) {
+  var attributes = {};
+
+  toArray(children.attributes).forEach(function (attribute) {
+    attributes[attribute.nodeName === 'vue-slot' ? 'slot' : attribute.nodeName] = attribute.nodeValue;
+  });
+
+  return attributes;
+}
+
+function getChildNodes(element) {
+  if (element.childNodes.length) return element.childNodes;
+  if (element.content && element.content.childNodes && element.content.childNodes.length) {
+    return element.content.childNodes;
+  }
+
+  var placeholder = document.createElement('div');
+
+  placeholder.innerHTML = element.innerHTML;
+
+  return placeholder.childNodes;
+}
+
+function templateElement(createElement, element, elementOptions) {
+  var templateChildren = getChildNodes(element);
+
+  var vueTemplateChildren = toArray(templateChildren).map(function (child) {
+    if (child.nodeName === '#text') return child.nodeValue;
+
+    return createElement(child.tagName, {
+      attrs: getAttributes(child),
+      domProps: {
+        innerHTML: child.innerHTML
+      }
+    });
+  });
+
+  elementOptions.slot = element.id;
+
+  return createElement('template', elementOptions, vueTemplateChildren);
+}
+
+function getSlots() {
+  var children = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
+  var createElement = arguments[1];
+
+  var slots = [];
+  toArray(children).forEach(function (child) {
+    if (child.nodeName === '#text') {
+      if (child.nodeValue.trim()) {
+        slots.push(createElement('span', child.nodeValue));
+      }
+    } else if (child.nodeName !== '#comment') {
+      var attributes = getAttributes(child);
+      var elementOptions = {
+        attrs: attributes,
+        domProps: {
+          innerHTML: child.innerHTML === '' ? child.innerText : child.innerHTML
+        }
+      };
+
+      if (attributes.slot) {
+        elementOptions.slot = attributes.slot;
+        attributes.slot = undefined;
+      }
+
+      var slotVueElement = child.tagName === 'TEMPLATE' ? templateElement(createElement, child, elementOptions) : createElement(child.tagName, elementOptions);
+
+      slots.push(slotVueElement);
+    }
+  });
+
+  return slots;
+}
+
+function customEvent(eventName, detail) {
+  var params = { bubbles: false, cancelable: false, detail: detail };
+  var event = void 0;
+  if (typeof window.CustomEvent === 'function') {
+    event = new CustomEvent(eventName, params);
+  } else {
+    event = document.createEvent('CustomEvent');
+    event.initCustomEvent(eventName, params.bubbles, params.cancelable, params.detail);
+  }
+  return event;
+}
+
+function customEmit(element, eventName) {
+  for (var _len = arguments.length, args = Array(_len > 2 ? _len - 2 : 0), _key = 2; _key < _len; _key++) {
+    args[_key - 2] = arguments[_key];
+  }
+
+  var event = customEvent(eventName, [].concat(args));
+  element.dispatchEvent(event);
+}
+
+function createVueInstance(element, Vue, componentDefinition, props, options) {
+  if (element.__vue_custom_element__) {
+    return Promise.resolve(element);
+  }
+  var ComponentDefinition = Vue.util.extend({}, componentDefinition);
+  var propsData = getPropsData(element, ComponentDefinition, props);
+  var vueVersion = Vue.version && parseInt(Vue.version.split('.')[0], 10) || 0;
+
+  function beforeCreate() {
+    this.$emit = function emit() {
+      var _proto__$$emit;
+
+      for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+        args[_key] = arguments[_key];
+      }
+
+      customEmit.apply(undefined, [element].concat(args));
+      this.__proto__ && (_proto__$$emit = this.__proto__.$emit).call.apply(_proto__$$emit, [this].concat(args));
+    };
+  }
+  ComponentDefinition.beforeCreate = [].concat(ComponentDefinition.beforeCreate || [], beforeCreate);
+
+  if (ComponentDefinition._compiled) {
+    var constructorOptions = {};
+    var _constructor = ComponentDefinition._Ctor;
+    if (_constructor) {
+      constructorOptions = Object.keys(_constructor).map(function (key) {
+        return _constructor[key];
+      })[0].options;
+    }
+    constructorOptions.beforeCreate = ComponentDefinition.beforeCreate;
+  }
+
+  var rootElement = void 0;
+
+  if (vueVersion >= 2) {
+    var elementOriginalChildren = element.cloneNode(true).childNodes;
+    rootElement = {
+      propsData: propsData,
+      props: props.camelCase,
+      computed: {
+        reactiveProps: function reactiveProps$$1() {
+          var _this = this;
+
+          var reactivePropsList = {};
+          props.camelCase.forEach(function (prop) {
+            typeof _this[prop] !== 'undefined' && (reactivePropsList[prop] = _this[prop]);
+          });
+
+          return reactivePropsList;
+        }
+      },
+      render: function render(createElement) {
+        var data = {
+          props: this.reactiveProps
+        };
+
+        return createElement(ComponentDefinition, data, getSlots(elementOriginalChildren, createElement));
+      }
+    };
+  } else if (vueVersion === 1) {
+    rootElement = ComponentDefinition;
+    rootElement.propsData = propsData;
+  } else {
+    rootElement = ComponentDefinition;
+    var propsWithDefault = {};
+    Object.keys(propsData).forEach(function (prop) {
+      propsWithDefault[prop] = { default: propsData[prop] };
+    });
+    rootElement.props = propsWithDefault;
+  }
+
+  var elementInnerHtml = vueVersion >= 2 ? '<div></div>' : ('<div>' + element.innerHTML + '</div>').replace(/vue-slot=/g, 'slot=');
+  if (options.shadow && element.shadowRoot) {
+    element.shadowRoot.innerHTML = elementInnerHtml;
+    rootElement.el = element.shadowRoot.children[0];
+  } else {
+    element.innerHTML = elementInnerHtml;
+    rootElement.el = element.children[0];
+  }
+
+  if (options.shadow && options.shadowCss && element.shadowRoot) {
+    var style = document.createElement('style');
+    style.type = 'text/css';
+    style.appendChild(document.createTextNode(options.shadowCss));
+
+    element.shadowRoot.appendChild(style);
+  }
+
+  reactiveProps(element, props);
+
+  if (typeof options.beforeCreateVueInstance === 'function') {
+    rootElement = options.beforeCreateVueInstance(rootElement) || rootElement;
+  }
+
+  return Promise.resolve(rootElement).then(function (vueOpts) {
+    element.__vue_custom_element__ = new Vue(vueOpts);
+    element.__vue_custom_element_props__ = props;
+    element.getVueInstance = function () {
+      var vueInstance = element.__vue_custom_element__;
+      return vueInstance.$children.length ? vueInstance.$children[0] : vueInstance;
+    };
+
+    element.removeAttribute('vce-cloak');
+    element.setAttribute('vce-ready', '');
+    customEmit(element, 'vce-ready');
+    return element;
+  });
+}
+
+function install(Vue) {
+  Vue.customElement = function vueCustomElement(tag, componentDefinition) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+    var isAsyncComponent = typeof componentDefinition === 'function';
+    var optionsProps = isAsyncComponent && { props: options.props || [] };
+    var props = getProps(isAsyncComponent ? optionsProps : componentDefinition);
+
+    var CustomElement = registerCustomElement(tag, {
+      constructorCallback: function constructorCallback() {
+        typeof options.constructorCallback === 'function' && options.constructorCallback.call(this);
+      },
+      connectedCallback: function connectedCallback() {
+        var _this = this;
+
+        var asyncComponentPromise = isAsyncComponent && componentDefinition();
+        var isAsyncComponentPromise = asyncComponentPromise && asyncComponentPromise.then && typeof asyncComponentPromise.then === 'function';
+
+        typeof options.connectedCallback === 'function' && options.connectedCallback.call(this);
+
+        if (isAsyncComponent && !isAsyncComponentPromise) {
+          throw new Error('Async component ' + tag + ' do not returns Promise');
+        }
+        if (!this.__detached__) {
+          if (isAsyncComponentPromise) {
+            asyncComponentPromise.then(function (lazyComponent) {
+              var lazyProps = getProps(lazyComponent);
+              createVueInstance(_this, Vue, lazyComponent, lazyProps, options).then(function () {
+                typeof options.vueInstanceCreatedCallback === 'function' && options.vueInstanceCreatedCallback.call(_this);
+              });
+            });
+          } else {
+            createVueInstance(this, Vue, componentDefinition, props, options).then(function () {
+              typeof options.vueInstanceCreatedCallback === 'function' && options.vueInstanceCreatedCallback.call(_this);
+            });
+          }
+        }
+
+        this.__detached__ = false;
+      },
+      disconnectedCallback: function disconnectedCallback() {
+        var _this2 = this;
+
+        this.__detached__ = true;
+        typeof options.disconnectedCallback === 'function' && options.disconnectedCallback.call(this);
+
+        options.destroyTimeout !== null && setTimeout(function () {
+          if (_this2.__detached__ && _this2.__vue_custom_element__) {
+            _this2.__detached__ = false;
+            _this2.__vue_custom_element__.$destroy(true);
+            delete _this2.__vue_custom_element__;
+            delete _this2.__vue_custom_element_props__;
+          }
+        }, options.destroyTimeout || 3000);
+      },
+      attributeChangedCallback: function attributeChangedCallback(name, oldValue, value) {
+        if (this.__vue_custom_element__ && typeof value !== 'undefined') {
+          var nameCamelCase = camelize(name);
+          typeof options.attributeChangedCallback === 'function' && options.attributeChangedCallback.call(this, name, oldValue, value);
+          var type = this.__vue_custom_element_props__.types[nameCamelCase];
+          this.__vue_custom_element__[nameCamelCase] = convertAttributeValue(value, type);
+        }
+      },
+
+
+      observedAttributes: props.hyphenate,
+
+      shadow: !!options.shadow && !!HTMLElement.prototype.attachShadow
+    });
+
+    return CustomElement;
+  };
+}
+
+if (typeof window !== 'undefined' && window.Vue) {
+  window.Vue.use(install);
+  if (install.installed) {
+    install.installed = false;
+  }
+}
+
+/* harmony default export */ var vue_custom_element_esm = (install);
+
+// CONCATENATED MODULE: ./node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"52fcd1ee-vue-loader-template"}!./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/cache-loader/dist/cjs.js??ref--0-0!./node_modules/vue-loader/lib??vue-loader-options!./src/compact-chart.vue?vue&type=template&id=0eade458&
+var render = function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _c('div',{staticClass:"pw-100"},[_c(_vm.chart_opts.type,{directives:[{name:"show",rawName:"v-show",value:(!_vm.status),expression:"!status"}],tag:"component",staticClass:"pw-100",attrs:{"format":_vm.chart_opts,"status":_vm.status},on:{"update:status":function($event){_vm.status=$event}}}),(_vm.invalid_ctype)?_c('div',[_vm._v("Unsupported visual")]):_vm._e(),(_vm.status == "Loading")?_c('spinner-item'):(_vm.status)?_c('div',[_vm._v(_vm._s(_vm.status))]):_vm._e()],1)}
+var staticRenderFns = []
+
+
+// CONCATENATED MODULE: ./src/compact-chart.vue?vue&type=template&id=0eade458&
+
+// CONCATENATED MODULE: ./node_modules/cache-loader/dist/cjs.js?{"cacheDirectory":"node_modules/.cache/vue-loader","cacheIdentifier":"52fcd1ee-vue-loader-template"}!./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/cache-loader/dist/cjs.js??ref--0-0!./node_modules/vue-loader/lib??vue-loader-options!./src/components/spinner-item.vue?vue&type=template&id=5dd05aa7&
+var spinner_itemvue_type_template_id_5dd05aa7_render = function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _vm._m(0)}
+var spinner_itemvue_type_template_id_5dd05aa7_staticRenderFns = [function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _c('div',{staticClass:"spinner"},[_c('div',{staticClass:"loader"},[_c('div'),_c('div'),_c('div')])])}]
+
+
+// CONCATENATED MODULE: ./src/components/spinner-item.vue?vue&type=template&id=5dd05aa7&
+
+// EXTERNAL MODULE: ./src/components/spinner-item.vue?vue&type=style&index=0&lang=scss&
+var spinner_itemvue_type_style_index_0_lang_scss_ = __webpack_require__("3d06");
+
+// CONCATENATED MODULE: ./node_modules/vue-loader/lib/runtime/componentNormalizer.js
+/* globals __VUE_SSR_CONTEXT__ */
+
+// IMPORTANT: Do NOT use ES2015 features in this file (except for modules).
+// This module is a runtime utility for cleaner component module output and will
+// be included in the final webpack user bundle.
+
+function normalizeComponent (
+  scriptExports,
+  render,
+  staticRenderFns,
+  functionalTemplate,
+  injectStyles,
+  scopeId,
+  moduleIdentifier, /* server only */
+  shadowMode /* vue-cli only */
+) {
+  // Vue.extend constructor export interop
+  var options = typeof scriptExports === 'function'
+    ? scriptExports.options
+    : scriptExports
+
+  // render functions
+  if (render) {
+    options.render = render
+    options.staticRenderFns = staticRenderFns
+    options._compiled = true
+  }
+
+  // functional template
+  if (functionalTemplate) {
+    options.functional = true
+  }
+
+  // scopedId
+  if (scopeId) {
+    options._scopeId = 'data-v-' + scopeId
+  }
+
+  var hook
+  if (moduleIdentifier) { // server build
+    hook = function (context) {
+      // 2.3 injection
+      context =
+        context || // cached call
+        (this.$vnode && this.$vnode.ssrContext) || // stateful
+        (this.parent && this.parent.$vnode && this.parent.$vnode.ssrContext) // functional
+      // 2.2 with runInNewContext: true
+      if (!context && typeof __VUE_SSR_CONTEXT__ !== 'undefined') {
+        context = __VUE_SSR_CONTEXT__
+      }
+      // inject component styles
+      if (injectStyles) {
+        injectStyles.call(this, context)
+      }
+      // register component module identifier for async chunk inferrence
+      if (context && context._registeredComponents) {
+        context._registeredComponents.add(moduleIdentifier)
+      }
+    }
+    // used by ssr in case component is cached and beforeCreate
+    // never gets called
+    options._ssrRegister = hook
+  } else if (injectStyles) {
+    hook = shadowMode
+      ? function () {
+        injectStyles.call(
+          this,
+          (options.functional ? this.parent : this).$root.$options.shadowRoot
+        )
+      }
+      : injectStyles
+  }
+
+  if (hook) {
+    if (options.functional) {
+      // for template-only hot-reload because in that case the render fn doesn't
+      // go through the normalizer
+      options._injectStyles = hook
+      // register for functional component in vue file
+      var originalRender = options.render
+      options.render = function renderWithStyleInjection (h, context) {
+        hook.call(context)
+        return originalRender(h, context)
+      }
+    } else {
+      // inject component registration as beforeCreate hook
+      var existing = options.beforeCreate
+      options.beforeCreate = existing
+        ? [].concat(existing, hook)
+        : [hook]
+    }
+  }
+
+  return {
+    exports: scriptExports,
+    options: options
+  }
+}
+
+// CONCATENATED MODULE: ./src/components/spinner-item.vue
+
+var script = {}
+
+
+
+/* normalize component */
+
+var component = normalizeComponent(
+  script,
+  spinner_itemvue_type_template_id_5dd05aa7_render,
+  spinner_itemvue_type_template_id_5dd05aa7_staticRenderFns,
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* harmony default export */ var spinner_item = (component.exports);
+// CONCATENATED MODULE: ./node_modules/vue-chartjs/es/mixins/index.js
+function dataHandler(newData, oldData) {
+  if (oldData) {
+    var chart = this.$data._chart;
+    var newDatasetLabels = newData.datasets.map(function (dataset) {
+      return dataset.label;
+    });
+    var oldDatasetLabels = oldData.datasets.map(function (dataset) {
+      return dataset.label;
+    });
+    var oldLabels = JSON.stringify(oldDatasetLabels);
+    var newLabels = JSON.stringify(newDatasetLabels);
+
+    if (newLabels === oldLabels && oldData.datasets.length === newData.datasets.length) {
+      newData.datasets.forEach(function (dataset, i) {
+        var oldDatasetKeys = Object.keys(oldData.datasets[i]);
+        var newDatasetKeys = Object.keys(dataset);
+        var deletionKeys = oldDatasetKeys.filter(function (key) {
+          return key !== '_meta' && newDatasetKeys.indexOf(key) === -1;
+        });
+        deletionKeys.forEach(function (deletionKey) {
+          delete chart.data.datasets[i][deletionKey];
+        });
+
+        for (var attribute in dataset) {
+          if (dataset.hasOwnProperty(attribute)) {
+            chart.data.datasets[i][attribute] = dataset[attribute];
+          }
+        }
+      });
+
+      if (newData.hasOwnProperty('labels')) {
+        chart.data.labels = newData.labels;
+        this.$emit('labels:update');
+      }
+
+      if (newData.hasOwnProperty('xLabels')) {
+        chart.data.xLabels = newData.xLabels;
+        this.$emit('xlabels:update');
+      }
+
+      if (newData.hasOwnProperty('yLabels')) {
+        chart.data.yLabels = newData.yLabels;
+        this.$emit('ylabels:update');
+      }
+
+      chart.update();
+      this.$emit('chart:update');
+    } else {
+      if (chart) {
+        chart.destroy();
+        this.$emit('chart:destroy');
+      }
+
+      this.renderChart(this.chartData, this.options);
+      this.$emit('chart:render');
+    }
+  } else {
+    if (this.$data._chart) {
+      this.$data._chart.destroy();
+
+      this.$emit('chart:destroy');
+    }
+
+    this.renderChart(this.chartData, this.options);
+    this.$emit('chart:render');
+  }
+}
+
+var reactiveData = {
+  data: function data() {
+    return {
+      chartData: null
+    };
+  },
+  watch: {
+    'chartData': dataHandler
+  }
+};
+var reactiveProp = {
+  props: {
+    chartData: {
+      type: Object,
+      required: true,
+      default: function _default() {}
+    }
+  },
+  watch: {
+    'chartData': dataHandler
+  }
+};
+/* harmony default export */ var mixins = ({
+  reactiveData: reactiveData,
+  reactiveProp: reactiveProp
+});
+// EXTERNAL MODULE: ./node_modules/chart.js/dist/Chart.js
+var Chart = __webpack_require__("30ef");
+var Chart_default = /*#__PURE__*/__webpack_require__.n(Chart);
+
+// CONCATENATED MODULE: ./node_modules/vue-chartjs/es/BaseCharts.js
+
+function generateChart(chartId, chartType) {
+  return {
+    render: function render(createElement) {
+      return createElement('div', {
+        style: this.styles,
+        class: this.cssClasses
+      }, [createElement('canvas', {
+        attrs: {
+          id: this.chartId,
+          width: this.width,
+          height: this.height
+        },
+        ref: 'canvas'
+      })]);
+    },
+    props: {
+      chartId: {
+        default: chartId,
+        type: String
+      },
+      width: {
+        default: 400,
+        type: Number
+      },
+      height: {
+        default: 400,
+        type: Number
+      },
+      cssClasses: {
+        type: String,
+        default: ''
+      },
+      styles: {
+        type: Object
+      },
+      plugins: {
+        type: Array,
+        default: function _default() {
+          return [];
+        }
+      }
+    },
+    data: function data() {
+      return {
+        _chart: null,
+        _plugins: this.plugins
+      };
+    },
+    methods: {
+      addPlugin: function addPlugin(plugin) {
+        this.$data._plugins.push(plugin);
+      },
+      generateLegend: function generateLegend() {
+        if (this.$data._chart) {
+          return this.$data._chart.generateLegend();
+        }
+      },
+      renderChart: function renderChart(data, options) {
+        if (this.$data._chart) this.$data._chart.destroy();
+        if (!this.$refs.canvas) throw new Error('Please remove the <template></template> tags from your chart component. See https://vue-chartjs.org/guide/#vue-single-file-components');
+        this.$data._chart = new Chart_default.a(this.$refs.canvas.getContext('2d'), {
+          type: chartType,
+          data: data,
+          options: options,
+          plugins: this.$data._plugins
+        });
+      }
+    },
+    beforeDestroy: function beforeDestroy() {
+      if (this.$data._chart) {
+        this.$data._chart.destroy();
+      }
+    }
+  };
+}
+var Bar = generateChart('bar-chart', 'bar');
+var HorizontalBar = generateChart('horizontalbar-chart', 'horizontalBar');
+var Doughnut = generateChart('doughnut-chart', 'doughnut');
+var Line = generateChart('line-chart', 'line');
+var Pie = generateChart('pie-chart', 'pie');
+var PolarArea = generateChart('polar-chart', 'polarArea');
+var Radar = generateChart('radar-chart', 'radar');
+var Bubble = generateChart('bubble-chart', 'bubble');
+var Scatter = generateChart('scatter-chart', 'scatter');
+/* harmony default export */ var BaseCharts = ({
+  Bar: Bar,
+  HorizontalBar: HorizontalBar,
+  Doughnut: Doughnut,
+  Line: Line,
+  Pie: Pie,
+  PolarArea: PolarArea,
+  Radar: Radar,
+  Bubble: Bubble,
+  Scatter: Scatter
+});
+// CONCATENATED MODULE: ./node_modules/vue-chartjs/es/index.js
+
+
+var VueCharts = {
+  Bar: Bar,
+  HorizontalBar: HorizontalBar,
+  Doughnut: Doughnut,
+  Line: Line,
+  Pie: Pie,
+  PolarArea: PolarArea,
+  Radar: Radar,
+  Bubble: Bubble,
+  Scatter: Scatter,
+  mixins: mixins,
+  generateChart: generateChart,
+  render: function render() {
+    return console.error('[vue-chartjs]: This is not a vue component. It is the whole object containing all vue components. Please import the named export or access the components over the dot notation. For more info visit https://vue-chartjs.org/#/home?id=quick-start');
+  }
+};
+/* harmony default export */ var es = (VueCharts);
+
+// CONCATENATED MODULE: ./src/chartjs-config.js
+var chartjs_config = {
+	"global": {
+		"defaultColor": "rgba(0,0,0,0.1)",
+		"defaultFontColor": "#666",
+		"defaultFontFamily": "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif",
+		"defaultFontSize": 12,
+		"defaultFontStyle": "normal",
+		"defaultLineHeight": 1.2,
+		"showLines": true,
+		"animation": {
+			"duration": 1000,
+			"easing": "easeOutQuart"
+		},
+		"elements": {
+			"arc": {
+				"backgroundColor": "rgba(0,0,0,0.1)",
+				"borderColor": "#fff",
+				"borderWidth": 2,
+				"borderAlign": "center"
+			},
+			"line": {
+				"tension": 0.4,
+				"backgroundColor": "rgba(0,0,0,0.1)",
+				"borderWidth": 3,
+				"borderColor": "rgba(0,0,0,0.1)",
+				"borderCapStyle": "butt",
+				"borderDash": [],
+				"borderDashOffset": 0,
+				"borderJoinStyle": "miter",
+				"capBezierPoints": true,
+				"fill": true
+			},
+			"point": {
+				"radius": 3,
+				"pointStyle": "circle",
+				"backgroundColor": "rgba(0,0,0,0.1)",
+				"borderColor": "rgba(0,0,0,0.1)",
+				"borderWidth": 1,
+				"hitRadius": 1,
+				"hoverRadius": 4,
+				"hoverBorderWidth": 1
+			},
+			"rectangle": {
+				"backgroundColor": "rgba(0,0,0,0.1)",
+				"borderColor": "rgba(0,0,0,0.1)",
+				"borderSkipped": "bottom",
+				"borderWidth": 0
+			}
+		},
+		"datasets": {
+			"bar": {
+				"categoryPercentage": 0.8,
+				"barPercentage": 0.9
+			},
+			"horizontalBar": {
+				"categoryPercentage": 0.8,
+				"barPercentage": 0.9
+			},
+			"scatter": {
+				"showLine": false
+			}
+		},
+		"layout": {
+			"padding": {
+				"top": 0,
+				"right": 0,
+				"bottom": 0,
+				"left": 0
+			}
+		},
+		"plugins": {
+			"filler": {
+				"propagate": true
+			}
+		},
+		"tooltips": {
+			"enabled": true,
+			"custom": null,
+			"mode": "nearest",
+			"position": "average",
+			"intersect": true,
+			"backgroundColor": "rgba(0,0,0,0.8)",
+			"titleFontStyle": "bold",
+			"titleSpacing": 2,
+			"titleMarginBottom": 6,
+			"titleFontColor": "#fff",
+			"titleAlign": "left",
+			"bodySpacing": 2,
+			"bodyFontColor": "#fff",
+			"bodyAlign": "left",
+			"footerFontStyle": "bold",
+			"footerSpacing": 2,
+			"footerMarginTop": 6,
+			"footerFontColor": "#fff",
+			"footerAlign": "left",
+			"yPadding": 6,
+			"xPadding": 6,
+			"caretPadding": 2,
+			"caretSize": 5,
+			"cornerRadius": 6,
+			"multiKeyBackground": "#fff",
+			"displayColors": true,
+			"borderColor": "rgba(0,0,0,0)",
+			"borderWidth": 0,
+			"callbacks": {}
+		},
+		"events": [
+			"mousemove",
+			"mouseout",
+			"click",
+			"touchstart",
+			"touchmove"
+		],
+		"hover": {
+			"onHover": null,
+			"mode": "nearest",
+			"intersect": true,
+			"animationDuration": 400
+		},
+		"onClick": null,
+		"maintainAspectRatio": false,
+		"responsive": true,
+		"responsiveAnimationDuration": 0,
+		"legend": {
+			"display": true,
+			"position": "top",
+			"align": "end",
+			"fullWidth": true,
+			"reverse": false,
+			"weight": 1000,
+			"onHover": null,
+			"onLeave": null,
+			"labels": {
+				"boxWidth": 10,
+				"padding": 10,
+				"fontColor": "#333",
+				"fontSize": 11
+			}
+		},
+		"title": {
+			"display": false,
+			"fontStyle": "bold",
+			"fontColor": "#333",
+			"fontSize": 14,
+			"fullWidth": true,
+			"padding": 5,
+			"position": "top",
+			"text": "",
+			"weight": 2000
+		}
+	},
+	"bar": {
+		"hover": {
+			"mode": "label"
+		},
+		"scales": {
+			"xAxes": [
+				{
+					"type": "category",
+					"offset": true,
+					"gridLines": {
+						"offsetGridLines": true,
+						"drawOnChartArea": false
+					}
+				}
+			],
+			"yAxes": [
+				{
+					"type": "linear"
+				}
+			]
+		}
+	},
+	"bubble": {
+		"hover": {
+			"mode": "single"
+		},
+		"scales": {
+			"xAxes": [
+				{
+					"type": "linear",
+					"position": "bottom",
+					"id": "x-axis-0"
+				}
+			],
+			"yAxes": [
+				{
+					"type": "linear",
+					"position": "left",
+					"id": "y-axis-0"
+				}
+			]
+		},
+		"tooltips": {
+			"callbacks": {}
+		}
+	},
+	"doughnut": {
+		"animation": {
+			"animateRotate": true,
+			"animateScale": false
+		},
+		"hover": {
+			"mode": "single"
+		},
+		"legend": {
+			"labels": {}
+		},
+		"cutoutPercentage": 50,
+		"rotation": -1.5707963267948966,
+		"circumference": 6.283185307179586,
+		"tooltips": {
+			"callbacks": {}
+		}
+	},
+	"horizontalBar": {
+		"hover": {
+			"mode": "index",
+			"axis": "y"
+		},
+		"scales": {
+			"xAxes": [
+				{
+					"type": "linear",
+					"position": "bottom"
+				}
+			],
+			"yAxes": [
+				{
+					"type": "category",
+					"position": "left",
+					"offset": true,
+					"gridLines": {
+						"offsetGridLines": true,
+						"drawOnChartArea": false
+					}
+				}
+			]
+		},
+		"elements": {
+			"rectangle": {
+				"borderSkipped": "left"
+			}
+		},
+		"tooltips": {
+			"mode": "index",
+			"axis": "y"
+		}
+	},
+	"line": {
+		"showLines": true,
+		"spanGaps": false,
+		"hover": {
+			"mode": "label"
+		},
+		"scales": {
+			"xAxes": [
+				{
+					"type": "category",
+					"id": "x-axis-0",
+					"gridLines": {
+						"drawOnChartArea": false
+					}
+				}
+			],
+			"yAxes": [
+				{
+					"type": "linear",
+					"id": "y-axis-0"
+				}
+			]
+		}
+	},
+	"polarArea": {
+		"scale": {
+			"type": "radialLinear",
+			"angleLines": {
+				"display": false
+			},
+			"gridLines": {
+				"circular": true
+			},
+			"pointLabels": {
+				"display": false
+			},
+			"ticks": {
+				"beginAtZero": true
+			}
+		},
+		"animation": {
+			"animateRotate": true,
+			"animateScale": true
+		},
+		"startAngle": -1.5707963267948966,
+		"legend": {
+			"labels": {}
+		},
+		"tooltips": {
+			"callbacks": {}
+		}
+	},
+	"pie": {
+		"animation": {
+			"animateRotate": true,
+			"animateScale": false
+		},
+		"hover": {
+			"mode": "single"
+		},
+		"legend": {
+			"labels": {}
+		},
+		"cutoutPercentage": 0,
+		"rotation": -1.5707963267948966,
+		"circumference": 6.283185307179586,
+		"tooltips": {
+			"callbacks": {}
+		}
+	},
+	"radar": {
+		"spanGaps": false,
+		"scale": {
+			"type": "radialLinear"
+		},
+		"elements": {
+			"line": {
+				"fill": "start",
+				"tension": 0
+			}
+		}
+	},
+	"scatter": {
+		"hover": {
+			"mode": "single"
+		},
+		"scales": {
+			"xAxes": [
+				{
+					"id": "x-axis-1",
+					"type": "linear",
+					"position": "bottom"
+				}
+			],
+			"yAxes": [
+				{
+					"id": "y-axis-1",
+					"type": "linear",
+					"position": "left"
+				}
+			]
+		},
+		"tooltips": {
+			"callbacks": {}
+		}
+	},
+	"scale": {
+		"display": true,
+		"position": "left",
+		"offset": false,
+		"gridLines": {
+			"display": true,
+			"color": "rgba(0,0,0,0.1)",
+			"lineWidth": 1,
+			"drawBorder": true,
+			"drawOnChartArea": true,
+			"drawTicks": true,
+			"tickMarkLength": 5,
+			"zeroLineWidth": 1,
+			"zeroLineColor": "rgba(0,0,0,0.25)",
+			"zeroLineBorderDash": [],
+			"zeroLineBorderDashOffset": 0,
+			"offsetGridLines": false,
+			"borderDash": [],
+			"borderDashOffset": 0
+		},
+		"scaleLabel": {
+			"fontColor": "#333",
+			"fontSize": 11,
+			"fontStyle": "bold",
+			"display": true,
+			"labelString": "",
+			"padding": {
+				"top": 4,
+				"bottom": 4
+			}
+		},
+		"ticks": {
+			"fontColor": "#333",
+			"fontSize": 11,
+			"beginAtZero": false,
+			"minRotation": 0,
+			"maxRotation": 50,
+			"mirror": false,
+			"padding": 4,
+			"reverse": false,
+			"display": true,
+			"autoSkip": true,
+			"autoSkipPadding": 0,
+			"labelOffset": 0,
+			"minor": {},
+			"major": {}
+		}
+	}
+};
+
+var label_config = {
+	"global": {
+		"align": "center",
+		"anchor": "center",
+		// "backgroundColor": null,
+		// "borderColor": null,
+		"borderRadius": 0,
+		"borderWidth": 0,
+		"clamp": false,
+		"clip": false,
+		"display": false,
+		"color": "#333",
+		"font": {
+			"size": 11,
+			"lineHeight": 1.2,
+			"weight": null
+		},
+		"listeners": {},
+		"offset": 4,
+		"opacity": 1,
+		"padding": {
+			"top": 4,
+			"right": 4,
+			"bottom": 4,
+			"left": 4
+		},
+		"rotation": 0,
+		"textAlign": "center",
+		"textStrokeWidth": 0,
+		"textShadowBlur": 0
+	},
+
+	"bar": {
+		"anchor": "end",
+		"align": "bottom"
+	},
+	"horizontalBar": {
+		"anchor": "end",
+		"align": "start"
+	},
+	"line": {
+		"clip": false,
+		"anchor": "center",
+		"align": "center",
+		"borderRadius": 4,
+		"padding": {
+			"top": 4,
+			"right": 12,
+			"bottom": 4,
+			"left": 12
+		},
+	},
+	"doughnut": {
+		"anchor": "center",
+		"align": "center"
+	},
+	"pie": {
+		"anchor": "center",
+		"align": "center"
+	}
+};
+
+var chartjs_sizing = {
+	"small": {
+		"title": {
+			"fontSize": 12,
+			"padding": 6
+		},
+		"legend": {
+			"boxWidth": 8,
+			"padding": 8,
+			"fontSize": 9
+		},
+		"scale": {
+			"scaleLabel": {
+				"fontSize": 9,
+				"padding": { "top": 2, "bottom": 2 }
+			},
+			"ticks": {
+				"fontSize": 9,
+				"padding": 4
+			}
+		},
+		"labels": {
+			"font": {"size": 9, "lineHeight": 1.5},
+			"padding": {"top": 2, "right": 6, "bottom": 2, "left": 6}
+		}
+	},
+	"medium": {
+		"title": {
+			"fontSize": 14,
+			"padding": 10
+		},
+		"legend": {
+			"boxWidth": 10,
+			"padding": 10,
+			"fontSize": 11
+		},
+		"scale": {
+			"scaleLabel": {
+				"fontSize": 11,
+				"padding": {"top": 4, "bottom": 4}
+			},
+			"ticks": {
+				"fontSize": 11,
+				"padding": 6
+			}
+		},
+		"labels": {
+			"font": {"size": 11},
+			"padding": {"top": 4, "right": 12, "bottom": 4, "left": 12}
+		}
+	},
+	"large": {
+		"title": {
+			"fontSize": 16,
+			"padding": 12
+		},
+		"legend": {
+			"boxWidth": 12,
+			"padding": 12,
+			"fontSize": 14
+		},
+		"scale": {
+			"scaleLabel": {
+				"fontSize": 14,
+				"padding": {"top": 6, "bottom": 6}
+			},
+			"ticks": {
+				"fontSize": 14,
+				"padding": 8
+			}
+		},
+		"labels": {
+			"font": {"size": 13},
+			"padding": {"top": 6, "right": 14, "bottom": 6, "left": 6}
+		}
+	}
+};
+
+
+// EXTERNAL MODULE: ./node_modules/lodash/lodash.js
+var lodash = __webpack_require__("2ef0");
+var lodash_default = /*#__PURE__*/__webpack_require__.n(lodash);
+
+// EXTERNAL MODULE: ./node_modules/chartjs-plugin-datalabels/dist/chartjs-plugin-datalabels.js
+var chartjs_plugin_datalabels = __webpack_require__("a9be");
+
+// CONCATENATED MODULE: ./src/chart-base.js
+
+
+
+
+
+const color_palettes = {
+	'grayscale': ['#768192', '#adb3be', '#cad2de', '#dfe4eb', '#f0f3fa'],
+	'pastele-1': ['#fbb4ae','#b3cde3','#ccebc5','#decbe4','#fed9a6','#ffffcc'],
+	'pastele-2': ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f'],
+	'mid-contrasting': ['#4e79a7','#f28e2c','#e15759','#76b7b2','#59a14f','#edc949','#af7aa1','#ff9da7','#9c755f','#bab0ab'],
+	'high-contrasting-1': ['#4dc9f6', '#f67019', '#f53794', '#537bc4', '#acc236', '#166a8f', '#00a950', '#58595b', '#8549ba', '#768192'],
+	'high-contrasting-2': ['#f3c300', '#875692', '#f38400', '#a1caf1', '#be0032', '#c2b280', '#848482', '#008856', '#e68fac', '#0067a5', '#f99379', '#604e97', '#f6a600', '#b3446c', '#dcd300', '#882d17', '#8db600', '#654522', '#e25822', '#2b3d26', '#f2f3f4', '#222222']
+};
+
+const dflt_cpalette = 'high-contrasting-1';
+
+const label_colors = {
+	'grayscale': '#fff',
+	'pastele-1': '#6D7E8F',
+	'pastele-2': '#6D7E8F',
+	'mid-contrasting': '#fff',
+	'high-contrasting-1': '#fff',
+	'high-contrasting-2': '#fff'
+};
+
+var chart_colors = function(palette) {
+	let colors = palette;
+	if (typeof palette == 'string') colors = color_palettes[palette];
+	return colors || color_palettes[dflt_cpalette];
+};
+
+var color_at = function (idx, palette) {
+	const colors = chart_colors(palette);
+	return colors[idx % colors.length];
+};
+
+var category_axis_column = function(format, resultset) {
+	const category_axis_column = format.category_axis_column;
+	if (category_axis_column == undefined) return null;
+
+	const {cols} = resultset;
+	let idx = category_axis_column;
+	if (typeof category_axis_column == 'string') idx = cols.findIndex(c => c.name == category_axis_column);
+	return idx;
+};
+
+
+const stchart_formats = {
+	locale: 'en', //string that is a Unicode BCP 47 locale identifier (https://www.unicode.org/reports/tr35/tr35.html#BCP_47_Conformance)
+	number_symbols: [
+		{v: 1e-9, s: 'n'},
+		{v: 1e-6, s: 'μ'},
+		{v: 1e-3, s: 'm'},
+		{v: 0},
+		{v: 1e3 , s: 'k'},
+		{v: 1e6 , s: 'M'},
+		{v: 1e9 , s: 'G'},
+		{v: 1e12, s: 'T'},
+		{v: 1e15, s: 'P'},
+		{v: 1e18, s: 'E'},
+		{v: 1e21, s: 'Z'},
+		{v: 1e24, s: 'Y'}
+	],
+
+	size: 'medium', // small, medium*, large
+
+	color_palette: 'default',
+
+	title: {
+		label: '',
+		// show: automatically calculated as !!label.trim()
+		placement: 'top' // top* (as top center), left (as left vertical), bottom (as bottom center), right (as right vertical)
+	},
+
+	legend: {
+		show: true,
+		placement: 'top-end' // 'position-align'
+		// position: top*, left, bottom, right
+		// align: center*, start, end
+		// * - default
+	},
+
+	labels: {
+		show: false, // true, false*
+		label: 'value', // value*, label, percentage (only if percentage_values: true and for), value-percentage
+		placement: null,// anchor-align: center*, start, end & center, start, end, right, bottom, left, top
+		// WISHLIST: font color: auto, custom
+		// WISHLIST: allow labels to overlap: y/n
+	},
+
+
+	stacked: false,	// bar, line
+	percentage_values: false, // bar, auto for pie
+
+	axis: {
+		type: null, // Chartjs default, 'linear', 'category', 'logarithmic'
+		label: '',
+		tick_orientation: null,  //auto, degrees 0 - 90, Only applicable to horizontal scales.
+		range: null, // auto, auto-0, []
+		step: undefined // undefined, Number, Only applicable to linear axes
+	},
+
+	// doughnut, gauge
+	hole_size: 0.5, // ranges between 0-1
+	//gauge
+	angle: 180 // arc angle, value in decimal degrees
+};
+
+function get_sizing_format(format) {
+	return chartjs_sizing[format.size || stchart_formats.size];
+};
+
+function chartjs_axis_format(axis, axis_format, stacked, perc_vals, locale, number_symbols) {
+	let af = lodash_default.a.merge({}, stchart_formats.axis, axis_format);
+
+	if (af.type) axis.type = af.type;
+	if (stacked) axis.stacked = stacked;
+	if (af.label) axis.scaleLabel.labelString = af.label;
+	if (af.tick_orientation != undefined) {
+		axis.ticks.minRotation = af.tick_orientation;
+		axis.ticks.maxRotation = af.tick_orientation;
+	}
+
+	const range = af.range;
+	if (range instanceof Array) {
+		axis.ticks.min = range[0];
+		axis.ticks.max = range[1];
+	}
+	if (range == 'auto-0')
+		axis.ticks.beginAtZero = true;
+
+	if (af.step != undefined)
+		axis.ticks.stepSize = af.step;
+
+	let tf = perc_vals ? chartjs_tick_formatters.percentage : chartjs_tick_formatters[axis.type] || chartjs_tick_formatters.category;
+	axis.ticks.callback = function(value, index, ticks) {
+		return tf.call(this, value, index, ticks, locale, number_symbols);
+	};
+	return axis;
+};
+
+var chartjs_scales_config = function(ctype, format) {
+	const sizing = get_sizing_format(format).scale;
+	let xaxis = lodash_default.a.merge({}, chartjs_config.scale, chartjs_config[ctype].scales.xAxes[0], sizing);
+	let yaxis = lodash_default.a.merge({}, chartjs_config.scale, chartjs_config[ctype].scales.yAxes[0], sizing);
+
+	const {locale, number_symbols} = format;
+	if (ctype == 'line') return {
+		xAxes: [chartjs_axis_format(xaxis, format.xaxis, false, false, locale, number_symbols)],
+		yAxes: [chartjs_axis_format(yaxis, format.yaxis, format.stacked, false, locale, number_symbols)]
+	};
+
+	if (ctype == 'bar') return {
+		xAxes: [chartjs_axis_format(xaxis, format.xaxis, format.stacked, false, false, locale, number_symbols)],
+		yAxes: [chartjs_axis_format(yaxis, format.yaxis, format.stacked, format.percentage_values, locale, number_symbols)]
+	};
+
+	if (ctype == 'horizontalBar') return {
+		xAxes: [chartjs_axis_format(xaxis, format.xaxis, format.stacked, format.percentage_values, locale, number_symbols)],
+		yAxes: [chartjs_axis_format(yaxis, format.yaxis, format.stacked, false, false, locale, number_symbols)]
+	};
+
+	return null;
+};
+
+var chartjs_title_format = function(format) {
+	let title = lodash_default.a.merge({}, chartjs_config.global.title, get_sizing_format(format).title);
+	let tf = lodash_default.a.merge({}, stchart_formats.title, format.title);
+
+	title.display = !!tf.label.trim();
+	title.text = tf.label;
+	title.position = tf.placement;
+
+	return title;
+};
+
+var chartjs_legend_format = function(format) {
+	let legend = lodash_default.a.merge({}, chartjs_config.global.legend, {labels: get_sizing_format(format).legend});
+	let lf = lodash_default.a.merge({}, stchart_formats.legend, format.legend);
+
+	legend.display = lf.show;
+
+	let [pos, align] = lf.placement.toLowerCase().split('-');
+	if (!~['top', 'left', 'bottom', 'right'].indexOf(pos)) pos = 'top';
+	if (!~['center', 'start', 'end'].indexOf(align)) align = 'right';
+	legend.position = pos;
+	legend.align = align;
+
+	return legend;
+};
+
+var chartjs_doughnut_format = function(format) {
+	const {hole_size=0.5} = format;
+	return {
+		cutoutPercentage: hole_size * 100
+	};
+};
+
+var chartjs_gauge_format = function(format) {
+	const {hole_size=0.5, angle=180} = format;
+	return {
+		circumference: angle * Math.PI / 180,
+		rotation: ((angle == 360) ? -90 : (-180 - angle)/2) * Math.PI / 180,
+		cutoutPercentage: hole_size * 100
+	};
+};
+
+var chartjs_label_format = function(ctype, format) {
+	const datalabels = lodash_default.a.merge({}, label_config.global, label_config[ctype], get_sizing_format(format).labels);
+	const lf = lodash_default.a.merge({}, stchart_formats.labels, format.labels);
+
+	if (!lf.display) return {datalabels};
+
+	datalabels.display = true;
+	if (lf.placement) {
+		const [anchor, align] = lf.placement.split('-');
+		datalabels.anchor = anchor;
+		datalabels.align = align;
+	}
+
+	let color = lf.color;
+	if (!color) color = label_colors[format.color_palette] || label_colors[dflt_cpalette];
+	if (color) datalabels.color = color;
+
+	const df = get_display_formatter(ctype, format);
+	const templates = {
+		'label': '<%= label %>',
+		'value': '<%= formatter.value(value) %>',
+		'percentage': '<%= formatter.percentage(perc) %>',
+		'value-percentage': '<%= formatter.value(value) %> (<%= formatter.percentage(perc) %>)'
+	};
+	const template = lodash_default.a.template(templates[lf.label], {imports: {formatter: df} });
+	datalabels.formatter = function(v, context) {
+		const ds = context.dataset;
+		const values = {
+			label: ds.label,
+			value: v,
+			perc: v/lodash_default.a.sum(ds.data)
+		}
+		let rv = template(values);
+		return rv;
+	};
+
+	if (ctype == 'line') {
+		datalabels.formatter = function(v, context) {
+			const ds = context.dataset;
+			const values = {
+				label: ds.label,
+				value: v.y,
+				perc: v.y
+			}
+			let rv = template(values);
+			return rv;
+		};
+
+		datalabels.backgroundColor = function(context) {
+			return context.dataset.borderColor;
+		};
+	}
+	return {datalabels};
+};
+
+var format_number = function(value, locale, number_symbols) {
+	if (value == 0) return {
+ 		v: 0,
+ 		nv: 0,
+ 		s: '',
+ 		str: '0'
+ 	};
+
+ 	let nv = value;
+ 	let symbol = '';
+
+ 	const symbols = number_symbols || stchart_formats.number_symbols;
+ 	for (let i = 0; i < symbols.length; ++i) {
+ 		const ns = symbols[i];
+ 		if (value < ns.v) break;
+
+ 		nv = value / (ns.v || 1);
+ 		symbol = ns.s;
+ 	}
+
+ 	nv = new Intl.NumberFormat(locale || stchart_formats.locale, {maximumSignificantDigits: 0, maximumSignificantDigits: 2}).format(nv);
+ 	return {
+ 		v: value,
+ 		nv: nv,
+ 		s: symbol,
+ 		str: symbol ? `${nv} ${symbol}` : nv
+ 	};
+};
+
+var chartjs_tick_formatters = {
+	category: function(value, index, ticks, locale) { return value; },
+	linear: function(value, index, ticks, locale, number_symbols) {
+		return format_number(value, locale, number_symbols).str;
+	},
+	logarithmic: function(value, index, ticks, locale, number_symbols) {
+		if (value == 0) return '0';
+		const fv = format_number(value, locale, number_symbols);
+		const r = Math.floor( value / (Math.pow(10, Math.floor(Math.log10(value)))) );
+		if (r == 0 || r == 1 || r == 2 || r == 5 || index == ticks.length - 1) return fv.str;
+		return '';
+
+	},
+	percentage: function(value, index, ticks, locale, number_symbols) {
+		return `${format_number(value * 100, locale, number_symbols).str} %`;
+	}
+};
+
+var chartjs_display_formatters = {
+	text: function(value) { return value; },
+	number: function(value) { return format_number(value).str; },
+	percentage: function(value) { return `${format_number(value * 100).str} %`; }
+};
+
+function get_display_formatter(ctype, format) {
+	const df = chartjs_display_formatters;
+
+	if (ctype == 'pie') {
+		return {
+			title: lodash_default.a.bind(df.text, null, lodash_default.a, format.locale, format.number_symbols),
+			value: lodash_default.a.bind(df.number, null, lodash_default.a, format.locale, format.number_symbols),
+			percentage: lodash_default.a.bind(df.percentage, null, lodash_default.a, format.locale, format.number_symbols)
+		};
+	}
+	if (ctype == 'line') {
+		const t =  lodash_default.a.get(format.xaxis, 'type', chartjs_config.line.scales.xAxes[0].type);
+		return {
+			title: lodash_default.a.bind(t == 'category' ? df.text : df.number, null, lodash_default.a, format.locale, format.number_symbols),
+			value: lodash_default.a.bind(df.number, null, lodash_default.a, format.locale, format.number_symbols)
+		};
+	}
+
+	return {
+		title: lodash_default.a.bind(df.text, null, lodash_default.a, format.locale, format.number_symbols),
+		value: lodash_default.a.bind(format.percentage_values ? df.percentage : df.number, null, lodash_default.a, format.locale, format.number_symbols),
+		percentage: lodash_default.a.bind(df.percentage, null, lodash_default.a, format.locale, format.number_symbols)
+	};
+};
+
+var chartjs_tooltp_format = function(ctype, format) {
+	const df = get_display_formatter(ctype, format);
+
+	if (ctype == 'pie') {
+		return {
+			// https://github.com/chartjs/Chart.js/blob/df942bb579be72619beb42e13720e9f325161ce4/src/controllers/controller.doughnut.js#L98
+			callbacks: {
+				title: function() { return ''; },
+				label: function(item, data) {
+					let labels = data.labels[item.index];
+					const label = (lodash_default.a.isArray(labels)) ? labels.slice() : labels;
+					const value = data.datasets[item.datasetIndex].data[item.index];
+					return `${label}: ${df.value(value)}`;
+				}
+			}
+		};
+	}
+
+	return {
+		// https://github.com/chartjs/Chart.js/blob/df942bb579be72619beb42e13720e9f325161ce4/src/core/core.tooltip.js#L40
+		callbacks: {
+			title: function(items, data) {
+				if (!items.length) return '';
+
+				const item = items[0];
+				const label = ctype == 'horizontalBar' ? item.yLabel : item.xLabel;
+				if (label != undefined) return df.title(label);
+
+				const labels = data.labels;
+				const lcnt = labels ? labels.length : 0;
+				if (lcnt > 0 && item.index < lcnt) return df.title(labels[item.index]);
+				return '';
+
+			},
+			label: function(item, data) {
+				let label = data.datasets[item.datasetIndex].label || '';
+				const value = ctype == 'horizontalBar' ? item.xLabel : item.yLabel;
+				return item.yLabel ? `${label}: ${df.value(value)}` : label;
+			}
+		}
+	};
+};
+
+var chartjs_mixin = {
+	props: {
+		format: {type: Object}
+	},
+	watch: {
+		format: function() {
+			this.rerender();
+		}
+	},
+	async mounted() {
+		this.render();
+		this.$emit('update:status', 'Loading');
+
+		this.rerender();
+	},
+	methods: {
+		async rerender() {
+			const pr = new Promise((resolve) => resolve(this.format.data));
+			try {
+				const result = await pr;
+				this.$emit('update:status', '');
+				this.render(result);
+			}
+			catch(err) {}
+			finally {
+				this.$emit('update:status', '');
+			}
+		}
+	}
+};
+// CONCATENATED MODULE: ./node_modules/cache-loader/dist/cjs.js??ref--0-0!./node_modules/vue-loader/lib??vue-loader-options!./src/components/bar-chart.vue?vue&type=script&lang=js&
+
+
+
+
+
+
+function create_bar_options(format) {
+	const title = chartjs_title_format(format);
+	const legend = chartjs_legend_format(format);
+	const scales = chartjs_scales_config('bar', format);
+	const datalabels = chartjs_label_format('bar', format);
+	const tooltips = chartjs_tooltp_format('bar', format);
+	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.bar, {title}, {legend}, {scales}, {plugins: datalabels}, {tooltips});
+	return opts;
+};
+
+function create_hbar_options(format) {
+	const title = chartjs_title_format(format);
+	const legend = chartjs_legend_format(format);
+	const scales = chartjs_scales_config('horizontalBar', format);
+	const datalabels = chartjs_label_format('horizontalBar', format);
+	const tooltips = chartjs_tooltp_format('horizontalBar', format);
+	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.horizontalBar, {title}, {legend}, {scales}, {plugins: datalabels}, {tooltips});
+	return opts;
+};
+
+function create_bar_dataset(response = {cols: [], data: []}, format) {
+	const {cols:rvcols, data:rvdata} = response;
+	const cat_col_idx = category_axis_column(format, response);
+	if (cat_col_idx == undefined) return {labels: [], datasets: []};
+
+	let datasets = rvcols.reduce((rv, col, i) => {
+		if (i == cat_col_idx) return rv;
+		rv.push({
+			label: col.name,
+			backgroundColor: color_at(rv.length, format.color_palette),
+			data: rvdata.map(x => x[i])
+		});
+		return rv;
+	}, []);
+
+	if (format.percentage_values) {
+		datasets.forEach(ds => {
+			let {data} = ds;
+			const sum = lodash_default.a.sum(data);
+			ds.data = data.map(y => y/sum);
+		});
+	}
+
+	const ds = {
+		labels: rvdata.map(x => x[cat_col_idx]),
+		datasets: datasets
+	};
+	return ds;
+};
+
+var BarChart = {
+	mixins: [chartjs_mixin, Bar],
+	props: {
+		format: {type: Object}
+	},
+	data: () => ({}),
+	methods: {
+		render(response) {
+			const ds = create_bar_dataset(response, this.format);
+			const opts = create_bar_options(this.format);
+			this.renderChart(ds, opts);
+		}
+	}
+};
+
+var HorizontalBarChart = {
+	mixins: [chartjs_mixin, HorizontalBar],
+	props: {
+		format: {type: Object}
+	},
+	data: () => ({}),
+	methods: {
+		render(response) {
+			const ds = create_bar_dataset(response, this.format);
+			const opts = create_hbar_options(this.format);
+			this.renderChart(ds, opts);
+		}
+	}
+};
+
+/* harmony default export */ var bar_chartvue_type_script_lang_js_ = ({BarChart, HorizontalBarChart});
+
+// CONCATENATED MODULE: ./src/components/bar-chart.vue?vue&type=script&lang=js&
+ /* harmony default export */ var components_bar_chartvue_type_script_lang_js_ = (bar_chartvue_type_script_lang_js_); 
+// CONCATENATED MODULE: ./src/components/bar-chart.vue
+var bar_chart_render, bar_chart_staticRenderFns
+
+
+
+
+/* normalize component */
+
+var bar_chart_component = normalizeComponent(
+  components_bar_chartvue_type_script_lang_js_,
+  bar_chart_render,
+  bar_chart_staticRenderFns,
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* harmony default export */ var bar_chart = (bar_chart_component.exports);
+// EXTERNAL MODULE: ./node_modules/color/index.js
+var node_modules_color = __webpack_require__("6929");
+var color_default = /*#__PURE__*/__webpack_require__.n(node_modules_color);
+
+// CONCATENATED MODULE: ./node_modules/cache-loader/dist/cjs.js??ref--0-0!./node_modules/vue-loader/lib??vue-loader-options!./src/components/line-chart.vue?vue&type=script&lang=js&
+
+
+
+
+
+
+
+function create_line_options(format) {
+	const title = chartjs_title_format(format);
+	const legend = chartjs_legend_format(format);
+	const scales = chartjs_scales_config('line', format);
+	const datalabels = chartjs_label_format('line', format);
+	const tooltips = chartjs_tooltp_format('line', format);
+	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.line, {title}, {legend}, {scales}, {plugins: datalabels}, {tooltips});
+	return opts;
+};
+
+function create_line_dataset(response = {cols: [], data: []}, format) {
+	const {cols:rvcols, data:rvdata} = response;
+	const cat_col_idx = category_axis_column(format, response);
+	if (cat_col_idx == undefined) return {labels: [], datasets: []};
+
+	const datasets = rvcols.reduce((rv, col, i) => {
+		if (i == cat_col_idx) return rv;
+		rv.push({
+			label: col.name,
+			borderColor: color_at(rv.length, format.color_palette),
+			borderWidth: 2,
+			fill: false,
+			data: rvdata.map(x => ({x: x[cat_col_idx], y: x[i]}))  //linear type
+		});
+		return rv;
+	}, []);
+
+	const ds = {
+		labels: rvdata.map(x => x[cat_col_idx]),
+		datasets: datasets
+	};
+	return ds;
+};
+
+function create_area_dataset(response = {cols: [], data: []}, format) {
+	const {cols:rvcols, data:rvdata} = response;
+	const cat_col_idx = category_axis_column(format, response);
+	if (cat_col_idx == undefined) return {labels: [], datasets: []};
+
+	const datasets = rvcols.reduce((rv, col, i) => {
+		if (i == cat_col_idx) return rv;
+		const bc = color_at(rv.length, format.color_palette);
+		const fc = color_default()(bc).fade(0.25).string();
+		rv.push({
+			label: col.name,
+			borderColor: bc,
+			backgroundColor: fc,
+			borderWidth: 2,
+			fill: true,
+			data: rvdata.map(x => ({x: x[cat_col_idx], y: x[i]}))  //linear type
+		});
+		return rv;
+	}, []);
+
+	const ds = {
+		labels: rvdata.map(x => x[cat_col_idx]),
+		datasets: datasets
+	};
+	return ds;
+};
+
+var LineChart = {
+	mixins: [chartjs_mixin, Line],
+	props: {
+		format: {type: Object}
+	},
+	data: () => ({}),
+	methods: {
+		render(response) {
+			const ds = create_line_dataset(response, this.format);
+			const opts = create_line_options(this.format);
+			this.renderChart(ds, opts);
+		}
+	}
+};
+
+var AreaChart = {
+	mixins: [LineChart],
+	methods: {
+		render(response) {
+			const ds = create_area_dataset(response, this.format);
+			const opts = create_line_options(this.format);
+			this.renderChart(ds, opts);
+		}
+	}
+};
+/* harmony default export */ var line_chartvue_type_script_lang_js_ = ({LineChart, AreaChart});
+
+// CONCATENATED MODULE: ./src/components/line-chart.vue?vue&type=script&lang=js&
+ /* harmony default export */ var components_line_chartvue_type_script_lang_js_ = (line_chartvue_type_script_lang_js_); 
+// CONCATENATED MODULE: ./src/components/line-chart.vue
+var line_chart_render, line_chart_staticRenderFns
+
+
+
+
+/* normalize component */
+
+var line_chart_component = normalizeComponent(
+  components_line_chartvue_type_script_lang_js_,
+  line_chart_render,
+  line_chart_staticRenderFns,
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* harmony default export */ var line_chart = (line_chart_component.exports);
+// CONCATENATED MODULE: ./node_modules/cache-loader/dist/cjs.js??ref--0-0!./node_modules/vue-loader/lib??vue-loader-options!./src/components/pie-chart.vue?vue&type=script&lang=js&
+
+
+
+
+
+
+function create_pie_options(format) {
+	const title = chartjs_title_format(format);
+	const legend = chartjs_legend_format(format);
+	const datalabels = chartjs_label_format('pie', format);
+	const tooltips = chartjs_tooltp_format('pie', format);
+	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.pie, {title}, {legend}, {plugins: datalabels}, {tooltips});
+	return opts;
+};
+
+function create_doughnut_options(format) {
+	const title = chartjs_title_format(format);
+	const legend = chartjs_legend_format(format);
+	const doughnut = chartjs_doughnut_format(format);
+	const datalabels = chartjs_label_format('pie', format);
+	const tooltips = chartjs_tooltp_format('pie', format);
+	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.doughnut, {title}, {legend}, doughnut, {plugins: datalabels}, {tooltips});
+	return opts;
+};
+
+function create_gauge_options(format) {
+	const title = chartjs_title_format(format);
+	const legend = chartjs_legend_format(format);
+	const gauge = chartjs_gauge_format(format);
+	const datalabels = chartjs_label_format('pie', format);
+	const tooltips = chartjs_tooltp_format('pie', format);
+	let opts = lodash_default.a.merge({}, chartjs_config.global, chartjs_config.doughnut, {title}, {legend}, gauge, {plugins: datalabels}, {tooltips});
+	return opts;
+};
+
+function create_pie_dataset(response = {cols: [], data: []}, format) {
+	const {cols:rvcols, data:rvdata} = response;
+	const cat_col_idx = category_axis_column(format, response);
+	if (cat_col_idx == undefined) return {labels: [], datasets: []};
+
+	const datasets = rvcols.reduce((rv, col, i) => {
+		if (i == cat_col_idx) return rv;
+		rv.push({
+			label: col.name,
+			data: rvdata.map(x => x[i]),
+			backgroundColor: chart_colors(format.color_palette)
+		});
+		return rv;
+	}, []);
+
+	const ds = {
+		labels: rvdata.map(x => x[cat_col_idx]),
+		datasets: datasets
+	};
+	return ds;
+};
+
+var PieChart = {
+	mixins: [chartjs_mixin, Pie],
+	props: {
+		format: {type: Object}
+	},
+	data: () => ({}),
+	methods: {
+		render(response) {
+			const ds = create_pie_dataset(response, this.format);
+			const opts = create_pie_options(this.format);
+			this.renderChart(ds, opts);
+		}
+	}
+};
+
+var DoughnutChart = {
+	mixins: [PieChart],
+	methods: {
+		render(response) {
+			const ds = create_pie_dataset(response, this.format);
+			const opts = create_doughnut_options(this.format);
+			this.renderChart(ds, opts);
+		}
+	}
+};
+
+var GaugeChart = {
+	mixins: [PieChart],
+	methods: {
+		render(response) {
+			const ds = create_pie_dataset(response, this.format);
+			const opts = create_gauge_options(this.format);
+			this.renderChart(ds, opts);
+		}
+	}
+};
+/* harmony default export */ var pie_chartvue_type_script_lang_js_ = ({PieChart, DoughnutChart, GaugeChart});
+
+// CONCATENATED MODULE: ./src/components/pie-chart.vue?vue&type=script&lang=js&
+ /* harmony default export */ var components_pie_chartvue_type_script_lang_js_ = (pie_chartvue_type_script_lang_js_); 
+// CONCATENATED MODULE: ./src/components/pie-chart.vue
+var pie_chart_render, pie_chart_staticRenderFns
+
+
+
+
+/* normalize component */
+
+var pie_chart_component = normalizeComponent(
+  components_pie_chartvue_type_script_lang_js_,
+  pie_chart_render,
+  pie_chart_staticRenderFns,
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* harmony default export */ var pie_chart = (pie_chart_component.exports);
+// CONCATENATED MODULE: ./node_modules/cache-loader/dist/cjs.js??ref--0-0!./node_modules/vue-loader/lib??vue-loader-options!./src/compact-chart.vue?vue&type=script&lang=js&
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+
+
+  const {BarChart: compact_chartvue_type_script_lang_js_BarChart, HorizontalBarChart: compact_chartvue_type_script_lang_js_HorizontalBarChart} = bar_chart;
+ const {LineChart: compact_chartvue_type_script_lang_js_LineChart, AreaChart: compact_chartvue_type_script_lang_js_AreaChart} = line_chart;
+  const {PieChart: compact_chartvue_type_script_lang_js_PieChart, DoughnutChart: compact_chartvue_type_script_lang_js_DoughnutChart, GaugeChart: compact_chartvue_type_script_lang_js_GaugeChart} = pie_chart;
+
+const chart_types = {
+	'bar-chart': compact_chartvue_type_script_lang_js_BarChart,
+	'horizontal-bar-chart': compact_chartvue_type_script_lang_js_HorizontalBarChart,
+	'line-chart': compact_chartvue_type_script_lang_js_LineChart,
+	'area-chart': compact_chartvue_type_script_lang_js_AreaChart,
+	'pie-chart': compact_chartvue_type_script_lang_js_PieChart,
+	'doughnut-chart': compact_chartvue_type_script_lang_js_DoughnutChart,
+	'gauge-chart': compact_chartvue_type_script_lang_js_GaugeChart
+};
+
+/* harmony default export */ var compact_chartvue_type_script_lang_js_ = ({
+	name: 'App',
+	props: ['format'],
+	data: () => ({
+		status: ''
+	}),
+	computed: {
+		chart_opts: function() {
+
+			let format = this.format;
+			if (typeof format == 'string') {
+				try { format = JSON.parse(format); }
+				catch (err) {}
+			}
+
+			const opts = {
+				msql: '',
+				type: '',
+				...format
+			};
+			return opts;
+		},
+		invalid_ctype: function() {
+			return !chart_types[this.chart_opts.type];
+		}
+	},
+
+	components: {SpinnerItem: spinner_item, ...chart_types},
+	mounted() { }
+});
+
+
+// CONCATENATED MODULE: ./src/compact-chart.vue?vue&type=script&lang=js&
+ /* harmony default export */ var src_compact_chartvue_type_script_lang_js_ = (compact_chartvue_type_script_lang_js_); 
+// EXTERNAL MODULE: ./src/compact-chart.vue?vue&type=style&index=0&lang=css&
+var compact_chartvue_type_style_index_0_lang_css_ = __webpack_require__("ae61");
+
+// CONCATENATED MODULE: ./src/compact-chart.vue
+
+
+
+
+
+
+/* normalize component */
+
+var compact_chart_component = normalizeComponent(
+  src_compact_chartvue_type_script_lang_js_,
+  render,
+  staticRenderFns,
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* harmony default export */ var compact_chart = (compact_chart_component.exports);
+// CONCATENATED MODULE: ./src/boot.js
+
+
+
+// For cross-browser compatibility (IE9+) use Custom Elements polyfill.
+// import 'document-register-element/build/document-register-element'
+
+// Custom elements are NOT display: block by default https://github.com/w3c/webcomponents/issues/224
+
+
+vue_runtime_esm["a" /* default */].use(vue_custom_element_esm);
+vue_runtime_esm["a" /* default */].customElement('compact-chart', compact_chart);
+
+// CONCATENATED MODULE: ./node_modules/@vue/cli-service/lib/commands/build/entry-lib-no-default.js
+
+
 
 
 /***/ })

@@ -1,7 +1,7 @@
 {
   "name": "compact-chart",
   "description": "An easy-to-use charting library designed for extremely quick and easy visualization.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "https://www.mireo.hr",
   "homepage": "https://github.com/mireo/compact-chart",
   "repository": {
@@ -21,11 +21,16 @@
     "chartjs-plugin-datalabels": "^0.7.0",
     "color": "^3.1.3",
     "lodash": "^4.17.20",
-    "vue": "^2.6.12",
     "vue-chartjs": "^3.5.1",
-    "vue-custom-element": "^3.2.14"
+    "vue-custom-element": "^3.2.14",
+    "vue": "^2.6.12"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@vue/cli-service": "^4.2.3",
+    "vue-template-compiler": "^2.6.11",
+    "sass": "^1.25.0",
+    "sass-loader": "^8.0.2"
+  },
   "browserslist": [
     "> 1%",
     "last 2 versions"
