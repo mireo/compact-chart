@@ -1,8 +1,8 @@
 {
   "name": "compact-chart",
   "description": "An easy-to-use charting library designed for extremely quick and easy visualization.",
-  "version": "1.0.4",
-  "author": "https://www.mireo.hr",
+  "version": "1.0.5",
+  "author": "https://www.mireo.com",
   "homepage": "https://github.com/mireo/compact-chart",
   "repository": {
     "type": "git",
@@ -12,9 +12,9 @@
     "url": "https://github.com/mireo/compact-chart/issues"
   },
   "scripts": {
-    "serve-production": "vue-cli-service serve src/boot.js --port 4200 --mode production",
-    "serve": "vue-cli-service serve src/boot.js --port 4200",
-    "build": "vue-cli-service build src/boot.js --target lib --name compact-chart --inline-vue"
+    "serve-production": "./node_modules/@vue/cli-service/bin/vue-cli-service.js serve src/boot.js --port 4200 --mode production",
+    "serve": "./node_modules/@vue/cli-service/bin/vue-cli-service.js serve src/boot.js --port 4200",
+    "build": "./node_modules/@vue/cli-service/bin/vue-cli-service.js build src/boot.js --target lib --name compact-chart --inline-vue"
   },
   "dependencies": {
     "chart.js": "^2.9.4",
@@ -22,7 +22,7 @@
     "color": "^3.1.3",
     "lodash": "^4.17.20",
     "vue-chartjs": "^3.5.1",
-    "vue-custom-element": "^3.2.14",
+    "vue-custom-element": "3.2.14",
     "vue": "^2.6.12"
   },
   "devDependencies": {
